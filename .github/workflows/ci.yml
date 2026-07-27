@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Prisma Client erzeugen
+        run: npm run db:generate --workspace @garagentor/api --if-present
+
+      - name: Formatierung prüfen
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typprüfung
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Tests
+        run: npm test
