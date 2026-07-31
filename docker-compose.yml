@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: garagentor-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-garagentor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-garagentor}
+      POSTGRES_DB: ${POSTGRES_DB:-garagentor}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-garagentor} -d ${POSTGRES_DB:-garagentor}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: garagentor-api
+    restart: unless-stopped
+    profiles: ['full']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-garagentor}:${POSTGRES_PASSWORD:-garagentor}@postgres:5432/${POSTGRES_DB:-garagentor}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - '4000:4000'
+    volumes:
+      - api-uploads:/app/uploads
+
+volumes:
+  postgres-data:
+  api-uploads:
