@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/auth.decorators';
 import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('System')
@@ -7,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Erreichbarkeit von API und Datenbank prüfen' })
   async check(): Promise<{ status: string; database: string; timestamp: string }> {
