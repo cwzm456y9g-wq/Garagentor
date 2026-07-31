@@ -5,6 +5,9 @@
     "moduleResolution": "Node",
     "outDir": "./dist",
     "rootDir": "./src",
+    // Muss innerhalb von dist liegen, damit ein `rimraf dist` den
+    // Inkrementell-Cache mit entfernt und der nächste Build vollständig emittiert.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "baseUrl": "./",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

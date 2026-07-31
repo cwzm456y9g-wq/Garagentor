@@ -23,6 +23,9 @@ async function bootstrap(): Promise<void> {
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: false },
+      // Je Feld wird nur der erste Verstoß gemeldet, damit Formulare im
+      // Frontend eine eindeutige Meldung anzeigen können.
+      stopAtFirstError: true,
     }),
   );
   app.useGlobalInterceptors(new DecimalInterceptor());

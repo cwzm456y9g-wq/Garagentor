@@ -4,8 +4,12 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { NumberingModule } from './common/numbering/numbering.module';
 import { loadConfiguration } from './config/configuration';
+import { CustomersModule } from './customers/customers.module';
 import { HealthController } from './health/health.controller';
+import { InvoicesModule } from './invoices/invoices.module';
+import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { QuotesModule } from './quotes/quotes.module';
 
 @Module({
   imports: [
@@ -20,6 +24,10 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     NumberingModule,
     AuthModule,
+    CustomersModule,
+    QuotesModule,
+    OrdersModule,
+    InvoicesModule,
   ],
   controllers: [HealthController],
 })
