@@ -301,7 +301,13 @@ export interface Door {
   daysUntilInspection?: number | null;
   inspections?: InspectionSummary[];
   defects?: Defect[];
-  serviceReports?: Array<{ id: string; reportNumber: string; date: string; status: string }>;
+  serviceReports?: Array<{
+    id: string;
+    reportNumber: string;
+    date: string;
+    status: string;
+    workPerformed: string;
+  }>;
   contracts?: Array<{ id: string; contractNumber: string; title: string; status: string }>;
   _count?: { inspections: number; defects: number; serviceReports: number };
 }
