@@ -5,14 +5,19 @@ import { AuthModule } from './auth/auth.module';
 import { NumberingModule } from './common/numbering/numbering.module';
 import { loadConfiguration } from './config/configuration';
 import { CustomersModule } from './customers/customers.module';
+import { DocumentsModule } from './documents/documents.module';
 import { DoorsModule } from './doors/doors.module';
 import { HealthController } from './health/health.controller';
+import { HrModule } from './hr/hr.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { OrdersModule } from './orders/orders.module';
 import { PlanningModule } from './planning/planning.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QuotesModule } from './quotes/quotes.module';
+import { ReportsModule } from './reports/reports.module';
+import { SearchModule } from './search/search.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -34,6 +39,11 @@ import { QuotesModule } from './quotes/quotes.module';
     DoorsModule,
     InventoryModule,
     PlanningModule,
+    HrModule,
+    DocumentsModule,
+    ReportsModule,
+    SettingsModule,
+    SearchModule,
   ],
   controllers: [HealthController],
 })
