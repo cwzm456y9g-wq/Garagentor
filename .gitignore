@@ -48,3 +48,6 @@ prisma/*.db-journal
 .turbo/
 .eslintcache
 .cache/
+
+# Lokale Entwicklungseinstellungen des Frontends
+apps/web/.env.local
