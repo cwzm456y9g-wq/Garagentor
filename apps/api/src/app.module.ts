@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { NumberingModule } from './common/numbering/numbering.module';
 import { loadConfiguration } from './config/configuration';
 import { CustomersModule } from './customers/customers.module';
+import { DoorsModule } from './doors/doors.module';
 import { HealthController } from './health/health.controller';
 import { InvoicesModule } from './invoices/invoices.module';
 import { OrdersModule } from './orders/orders.module';
@@ -28,6 +29,7 @@ import { QuotesModule } from './quotes/quotes.module';
     QuotesModule,
     OrdersModule,
     InvoicesModule,
+    DoorsModule,
   ],
   controllers: [HealthController],
 })

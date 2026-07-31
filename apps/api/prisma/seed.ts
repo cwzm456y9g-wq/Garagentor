@@ -152,14 +152,19 @@ async function main(): Promise<void> {
   const [weber, brinkmann, kohl, sander] = employees;
 
   // Sachkunde nach DGUV Information 208-022 berechtigt zur Prüfung nach ASR A1.7.
+  // Die Nachweise werden relativ zum heutigen Tag datiert, damit der Demobetrieb
+  // unabhängig vom Zeitpunkt des Seed-Laufs eine gültige Sachkunde vorweist.
+  const brinkmannIssued = addMonths(new Date(), -10);
+  const sanderIssued = addMonths(new Date(), -26);
+
   const qualifications = [
     {
       employeeId: brinkmann.id,
       name: 'Sachkundiger für kraftbetätigte Tore und Türen',
       issuer: 'TÜV NORD Akademie',
-      certificate: 'SK-2023-4471',
-      issuedAt: new Date('2023-03-14'),
-      expiresAt: addMonths(new Date('2023-03-14'), 36),
+      certificate: 'SK-4471',
+      issuedAt: brinkmannIssued,
+      expiresAt: addMonths(brinkmannIssued, 36),
       qualifiesForInspection: true,
     },
     {
@@ -171,11 +176,12 @@ async function main(): Promise<void> {
     },
     {
       employeeId: sander.id,
+      // Läuft in zehn Monaten ab und taucht damit in der Fristenübersicht auf.
       name: 'Sachkundiger für kraftbetätigte Tore und Türen',
       issuer: 'TÜV NORD Akademie',
-      certificate: 'SK-2025-1180',
-      issuedAt: new Date('2025-05-20'),
-      expiresAt: addMonths(new Date('2025-05-20'), 36),
+      certificate: 'SK-1180',
+      issuedAt: sanderIssued,
+      expiresAt: addMonths(sanderIssued, 36),
       qualifiesForInspection: true,
     },
   ];
