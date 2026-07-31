@@ -1,0 +1,107 @@
+@import 'tailwindcss';
+
+/*
+ * Gestaltungsraster der Anwendung. Die Farben sind bewusst zurückhaltend
+ * gewählt: ein tiefes Blaugrau als Grundton, ein warmes Bernstein als Akzent
+ * für Handlungen und Hinweise auf Fristen.
+ */
+@theme {
+  --color-marine-50: #f2f6fa;
+  --color-marine-100: #e2ebf4;
+  --color-marine-200: #c8dbeb;
+  --color-marine-300: #9fc2dc;
+  --color-marine-400: #6fa2c8;
+  --color-marine-500: #4d84b2;
+  --color-marine-600: #3a6a97;
+  --color-marine-700: #30567b;
+  --color-marine-800: #2b4966;
+  --color-marine-900: #1e3247;
+  --color-marine-950: #12202f;
+
+  --color-bernstein-50: #fff9ed;
+  --color-bernstein-100: #fff1d4;
+  --color-bernstein-200: #ffdfa8;
+  --color-bernstein-300: #ffc771;
+  --color-bernstein-400: #ffa438;
+  --color-bernstein-500: #fd8812;
+  --color-bernstein-600: #ee6c07;
+  --color-bernstein-700: #c55108;
+  --color-bernstein-800: #9c400f;
+  --color-bernstein-900: #7e3610;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-800 antialiased;
+    font-feature-settings: 'tnum' 0;
+  }
+
+  /* Beträge und Nummern in Tabellen laufen mit gleicher Ziffernbreite. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    @apply ring-marine-500 rounded-sm outline-none ring-2 ring-offset-2;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-sm;
+  }
+
+  .card-header {
+    @apply flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4;
+  }
+
+  .card-title {
+    @apply text-base font-semibold text-slate-900;
+  }
+
+  .card-body {
+    @apply px-5 py-4;
+  }
+
+  .table-base {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .table-base thead th {
+    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-xs font-semibold
+      uppercase tracking-wide text-slate-500;
+  }
+
+  .table-base tbody td {
+    @apply border-b border-slate-100 px-4 py-3 align-top;
+  }
+
+  .table-base tbody tr:hover {
+    @apply bg-marine-50/60;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
+      shadow-sm placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50;
+  }
+
+  .hint {
+    @apply mt-1 text-xs text-slate-500;
+  }
+
+  .error-text {
+    @apply mt-1 text-xs text-red-600;
+  }
+}
