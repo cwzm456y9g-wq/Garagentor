@@ -3,7 +3,12 @@
  * Toranlagen, Belegen und Stammdaten. Der Lauf ist idempotent – vorhandene
  * Datensätze werden anhand ihrer fachlichen Schlüssel aktualisiert.
  */
-import { addMonths, DEFAULT_MAINTENANCE_INTERVAL_MONTHS } from '@garagentor/shared';
+import {
+  addMonths,
+  checkCatalogFor,
+  DEFAULT_MAINTENANCE_INTERVAL_MONTHS,
+  type OperationMode,
+} from '@garagentor/shared';
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 
@@ -16,6 +21,47 @@ function daysFromNow(days: number): Date {
   date.setHours(9, 0, 0, 0);
   date.setDate(date.getDate() + days);
   return date;
+}
+
+function atTime(date: Date, hours: number, minutes = 0): Date {
+  const stamp = new Date(date);
+  stamp.setHours(hours, minutes, 0, 0);
+  return stamp;
+}
+
+type CheckResult = 'OK' | 'MANGEL' | 'NICHT_ZUTREFFEND' | 'NICHT_GEPRUEFT';
+
+type CheckOverride = {
+  result?: CheckResult;
+  measuredValue?: number;
+  comment?: string;
+};
+
+/**
+ * Baut die Prüfpunkte eines Protokolls aus dem Katalog auf – dieselbe Vorbelegung,
+ * die auch die API beim Anlegen einer Prüfung vornimmt. Bei handbetätigten Anlagen
+ * entfallen die Punkte zu Antrieb, Schutzeinrichtungen und Kraftmessung.
+ */
+function buildChecks(
+  operationMode: OperationMode,
+  overrides: Record<string, CheckOverride | undefined> = {},
+  fallback: CheckResult = 'OK',
+) {
+  return checkCatalogFor(operationMode).map((definition, index) => {
+    const override = overrides[definition.key] ?? {};
+    return {
+      position: index + 1,
+      key: definition.key,
+      group: definition.group,
+      label: definition.label,
+      reference: definition.reference ?? null,
+      result: override.result ?? fallback,
+      measuredValue: override.measuredValue ?? null,
+      unit: definition.measurement?.unit ?? null,
+      limitValue: definition.measurement?.limit ?? null,
+      comment: override.comment ?? null,
+    };
+  });
 }
 
 async function seedSettings(): Promise<void> {
@@ -580,7 +626,11 @@ async function main(): Promise<void> {
     });
   }
 
-  const rollgitter = await prisma.door.findUniqueOrThrow({ where: { doorNumber: 'TOR-00004' } });
+  const [schnelllauftor, industrietor, sectionaltor, rollgitter] = await Promise.all(
+    ['TOR-00001', 'TOR-00002', 'TOR-00003', 'TOR-00004'].map((doorNumber) =>
+      prisma.door.findUniqueOrThrow({ where: { doorNumber } }),
+    ),
+  );
 
   /* Wartungsvertrag ----------------------------------------------------- */
 
@@ -601,24 +651,245 @@ async function main(): Promise<void> {
     },
   });
 
-  /* Offener Mangel ------------------------------------------------------ */
+  /* Prüfprotokolle nach ASR A1.7 ---------------------------------------- */
+
+  const brinkmannName = `${brinkmann.firstName} ${brinkmann.lastName}`;
+  const sanderName = `${sander.firstName} ${sander.lastName}`;
+
+  // Die Prüftermine sind so datiert, dass der Folgetermin genau auf die
+  // nextInspectionDue der jeweiligen Anlage fällt.
+  const inspections = [
+    {
+      inspectionNumber: 'PR-2026-0001',
+      doorId: industrietor.id,
+      operationMode: industrietor.operationMode,
+      type: 'WIEDERKEHRENDE_PRUEFUNG' as const,
+      date: daysFromNow(-347),
+      inspectorId: brinkmann.id,
+      inspectorName: brinkmannName,
+      result: 'BESTANDEN' as const,
+      nextDueDate: daysFromNow(18),
+      summary: 'Die Anlage wurde ohne Beanstandung geprüft.',
+      recommendation:
+        'Laufrollen und Federpaket beim nächsten Wartungseinsatz nachfetten; ' +
+        'Torblatt zeigt beginnende Anfahrspuren an der Unterkante.',
+      signedByName: 'Andreas Peters',
+      completedAt: daysFromNow(-347),
+      overrides: {
+        MESS_KRAFT_DYNAMISCH: {
+          measuredValue: 312,
+          comment: 'Messung an der Hauptschließkante, 300 mm über Oberkante Fertigfußboden.',
+        },
+        MESS_KRAFT_REST: { measuredValue: 96 },
+        MESS_KRAFT_DAUER: { measuredValue: 620 },
+      },
+    },
+    {
+      inspectionNumber: 'PR-2026-0002',
+      doorId: schnelllauftor.id,
+      operationMode: schnelllauftor.operationMode,
+      type: 'WIEDERKEHRENDE_PRUEFUNG' as const,
+      date: daysFromNow(-377),
+      inspectorId: sander.id,
+      inspectorName: sanderName,
+      result: 'BESTANDEN_MIT_HINWEISEN' as const,
+      nextDueDate: daysFromNow(-12),
+      summary: 'Die Anlage wurde geprüft; einzelne Prüfpunkte waren nicht zutreffend.',
+      recommendation: 'Prüftermin ist überschritten – Wiederholungsprüfung kurzfristig einplanen.',
+      signedByName: 'Andreas Peters',
+      completedAt: daysFromNow(-377),
+      overrides: {
+        // Das Spiraltor läuft direkt angetrieben, ohne Federausgleich und Seilzug.
+        BAU_FEDERN: {
+          result: 'NICHT_ZUTREFFEND' as const,
+          comment: 'Kein Federausgleich verbaut.',
+        },
+        SICH_FEDERBRUCH: { result: 'NICHT_ZUTREFFEND' as const },
+        SICH_SEILBRUCH: { result: 'NICHT_ZUTREFFEND' as const, comment: 'Bauart ohne Tragseile.' },
+        MESS_KRAFT_DYNAMISCH: { measuredValue: 358 },
+        MESS_KRAFT_REST: { measuredValue: 118 },
+        MESS_KRAFT_DAUER: { measuredValue: 690 },
+      },
+    },
+    {
+      inspectionNumber: 'PR-2026-0003',
+      doorId: rollgitter.id,
+      operationMode: rollgitter.operationMode,
+      type: 'WIEDERKEHRENDE_PRUEFUNG' as const,
+      date: daysFromNow(-5),
+      inspectorId: brinkmann.id,
+      inspectorName: brinkmannName,
+      result: 'NICHT_BESTANDEN' as const,
+      // Bei sicherheitsrelevanter Beanstandung wird kurzfristig nachgeprüft
+      // statt erst nach zwölf Monaten.
+      nextDueDate: daysFromNow(9),
+      summary:
+        'Sicherheitsrelevante Beanstandung an 1 Prüfpunkt(en). ' +
+        'Die Anlage ist bis zur Instandsetzung außer Betrieb zu nehmen.',
+      recommendation:
+        'Einweglichtschranke ersetzen (Artikel A-00004) und Nachprüfung vor ' +
+        'Wiederinbetriebnahme durchführen.',
+      signedByName: 'M. Terhorst, Hausmeister',
+      completedAt: daysFromNow(-5),
+      overrides: {
+        SCHUTZ_LICHTSCHRANKE: {
+          result: 'MANGEL' as const,
+          comment: 'Prüfkörper wird nicht erkannt, Empfänger ohne Betriebsanzeige.',
+        },
+        MESS_KRAFT_DYNAMISCH: { measuredValue: 340 },
+        MESS_KRAFT_REST: { measuredValue: 105 },
+        MESS_KRAFT_DAUER: { measuredValue: 610 },
+      },
+    },
+    {
+      // Offenes Protokoll: die Nachprüfung nach der Instandsetzung.
+      inspectionNumber: 'PR-2026-0004',
+      doorId: rollgitter.id,
+      operationMode: rollgitter.operationMode,
+      type: 'NACHPRUEFUNG' as const,
+      date: daysFromNow(0),
+      inspectorId: brinkmann.id,
+      inspectorName: brinkmannName,
+      result: null,
+      nextDueDate: null,
+      summary: null,
+      recommendation: null,
+      signedByName: null,
+      completedAt: null,
+      fallback: 'NICHT_GEPRUEFT' as const,
+      overrides: {},
+    },
+  ];
+
+  for (const { operationMode, overrides, fallback, ...inspection } of inspections) {
+    const checks = buildChecks(operationMode, overrides, fallback ?? 'OK');
+    await prisma.inspection.upsert({
+      where: { inspectionNumber: inspection.inspectionNumber },
+      update: { ...inspection, checks: { deleteMany: {}, create: checks } },
+      create: { ...inspection, checks: { create: checks } },
+    });
+  }
+
+  const failedInspection = await prisma.inspection.findUniqueOrThrow({
+    where: { inspectionNumber: 'PR-2026-0003' },
+  });
+
+  /* Mangel aus der nicht bestandenen Prüfung ----------------------------- */
+
+  const defect = {
+    doorId: rollgitter.id,
+    inspectionId: failedInspection.id,
+    // Beanstandete Schutzeinrichtungen erben den höchsten Schweregrad.
+    severity: 'GEFAHR_IM_VERZUG' as const,
+    status: 'OFFEN' as const,
+    title: 'Lichtschranke außer Funktion',
+    description:
+      'Empfänger der Einweglichtschranke reagiert nicht, Tor schließt ohne Absicherung ' +
+      'der Hauptschließkante. Anlage bis zur Instandsetzung außer Betrieb genommen.',
+    checkKey: 'SCHUTZ_LICHTSCHRANKE',
+    dueDate: daysFromNow(-5),
+  };
 
   const existingDefect = await prisma.defect.findFirst({
     where: { doorId: rollgitter.id, checkKey: 'SCHUTZ_LICHTSCHRANKE' },
   });
-  if (!existingDefect) {
-    await prisma.defect.create({
-      data: {
-        doorId: rollgitter.id,
-        severity: 'ERHEBLICH',
-        status: 'OFFEN',
-        title: 'Lichtschranke außer Funktion',
-        description:
-          'Empfänger der Einweglichtschranke reagiert nicht, Tor schließt ohne Absicherung ' +
-          'der Hauptschließkante. Nutzung bis zur Instandsetzung nur mit Totmannsteuerung.',
-        checkKey: 'SCHUTZ_LICHTSCHRANKE',
-        dueDate: daysFromNow(7),
-      },
+  if (existingDefect) {
+    await prisma.defect.update({ where: { id: existingDefect.id }, data: defect });
+  } else {
+    await prisma.defect.create({ data: defect });
+  }
+
+  // Eine nicht bestandene Prüfung nimmt die Anlage außer Betrieb.
+  await prisma.door.update({
+    where: { id: rollgitter.id },
+    data: { status: 'AUSSER_BETRIEB' },
+  });
+
+  /* Serviceberichte ------------------------------------------------------ */
+
+  const reports = [
+    {
+      reportNumber: 'SB-2026-0001',
+      doorId: rollgitter.id,
+      technicianId: brinkmann.id,
+      status: 'ABGERECHNET' as const,
+      date: daysFromNow(-46),
+      arrivalTime: atTime(daysFromNow(-46), 8, 0),
+      departureTime: atTime(daysFromNow(-46), 11, 45),
+      workHours: 3,
+      travelHours: 0.75,
+      travelKm: 45,
+      faultDescription:
+        'Rollgitter blockiert beim Öffnen auf halber Höhe, laute Laufgeräusche in der Führung.',
+      workPerformed:
+        'Sechs ausgeschlagene Laufrollen ersetzt, Führungsschienen gereinigt und gefettet, ' +
+        'Endlagen neu eingestellt, Probelauf über zehn Zyklen durchgeführt.',
+      followUpRequired: false,
+      signedByName: 'M. Terhorst, Hausmeister',
+      completedAt: atTime(daysFromNow(-46), 11, 45),
+      materials: [
+        {
+          articleId: articleByNumber.get('A-00006')?.id ?? null,
+          name: 'Laufrolle mit Kugellager',
+          quantity: 6,
+          unit: 'Stk',
+          unitPrice: 16.9,
+        },
+      ],
+    },
+    {
+      reportNumber: 'SB-2026-0002',
+      doorId: industrietor.id,
+      technicianId: brinkmann.id,
+      status: 'ABGESCHLOSSEN' as const,
+      date: daysFromNow(-347),
+      arrivalTime: atTime(daysFromNow(-347), 7, 30),
+      departureTime: atTime(daysFromNow(-347), 10, 0),
+      workHours: 2.5,
+      travelHours: 0.5,
+      travelKm: 18,
+      faultDescription: null,
+      workPerformed:
+        'Wartung nach Herstellervorgabe im Rahmen des Wartungsvertrags: Laufwerk, ' +
+        'Federpaket und Befestigungen geprüft und gefettet, Schutzeinrichtungen und ' +
+        'Kraftbegrenzung geprüft, anschließend wiederkehrende Prüfung nach ASR A1.7.',
+      followUpRequired: false,
+      signedByName: 'Andreas Peters',
+      completedAt: atTime(daysFromNow(-347), 10, 0),
+      materials: [],
+    },
+    {
+      reportNumber: 'SB-2026-0003',
+      doorId: schnelllauftor.id,
+      technicianId: sander.id,
+      status: 'ENTWURF' as const,
+      date: daysFromNow(-3),
+      arrivalTime: atTime(daysFromNow(-3), 13, 15),
+      departureTime: atTime(daysFromNow(-3), 15, 0),
+      workHours: 1.5,
+      travelHours: 0.5,
+      travelKm: 22,
+      faultDescription:
+        'Tor fährt nach Not-Aus nicht mehr selbsttätig in die obere Endlage, ' +
+        'Steuerung meldet Fehler F.07.',
+      workPerformed:
+        'Fehlerspeicher der Steuerung ausgelesen und zurückgesetzt, Endschalter ' +
+        'nachjustiert, Behelfsbetrieb im Totmannbetrieb hergestellt.',
+      followUpRequired: true,
+      followUpNote:
+        'Absolutwertgeber defekt, Ersatzteil beim Hersteller bestellt. ' +
+        'Zweiter Einsatz nach Wareneingang erforderlich.',
+      signedByName: null,
+      completedAt: null,
+      materials: [],
+    },
+  ];
+
+  for (const { materials, ...report } of reports) {
+    await prisma.serviceReport.upsert({
+      where: { reportNumber: report.reportNumber },
+      update: { ...report, materials: { deleteMany: {}, create: materials } },
+      create: { ...report, materials: { create: materials } },
     });
   }
 
@@ -774,6 +1045,8 @@ async function main(): Promise<void> {
     { entity: 'CUSTOMER', prefix: 'K-', padding: 5, yearlyReset: false, nextNumber: 4 },
     { entity: 'QUOTE', prefix: 'AN-', padding: 4, yearlyReset: true, nextNumber: 2 },
     { entity: 'INVOICE', prefix: 'RE-', padding: 4, yearlyReset: true, nextNumber: 2 },
+    { entity: 'SERVICE_REPORT', prefix: 'SB-', padding: 4, yearlyReset: true, nextNumber: 4 },
+    { entity: 'INSPECTION', prefix: 'PR-', padding: 4, yearlyReset: true, nextNumber: 5 },
     { entity: 'ARTICLE', prefix: 'A-', padding: 5, yearlyReset: false, nextNumber: 10 },
     { entity: 'DOOR', prefix: 'TOR-', padding: 5, yearlyReset: false, nextNumber: 5 },
     { entity: 'EMPLOYEE', prefix: 'MA-', padding: 3, yearlyReset: false, nextNumber: 5 },
