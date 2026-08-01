@@ -23,6 +23,12 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
+      # Das gemeinsame Paket wird über sein Build-Ergebnis eingebunden (dist/),
+      # das nicht eingecheckt ist. API und Web können also erst dagegen prüfen,
+      # wenn es einmal übersetzt wurde.
+      - name: Gemeinsames Paket bauen
+        run: npm run build:shared
+
       - name: Prisma Client erzeugen
         run: npm run db:generate --workspace @garagentor/api --if-present
 
