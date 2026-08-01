@@ -12,7 +12,7 @@ nach **ASR A1.7** und digitalen Serviceberichten.
 | `apps/web`        | `@garagentor/web`    | Next.js-Frontend (App Router)                         |
 | `packages/shared` | `@garagentor/shared` | Enums, Typen, Beleg- und Datumslogik für beide Seiten |
 
-Verwaltet mit npm-Workspaces – ein `npm install` im Wurzelverzeichnis genügt.
+Verwaltet mit npm-Workspaces – installiert wird ausschließlich im Wurzelverzeichnis.
 
 ## Fachlicher Umfang
 
@@ -42,6 +42,8 @@ Verwaltet mit npm-Workspaces – ein `npm install` im Wurzelverzeichnis genügt.
 
 ## Schnellstart
 
+Voraussetzungen: Node.js ≥ 20.11 (siehe `.nvmrc`) und Docker für die Datenbank.
+
 ```bash
 npm install
 cp .env.example .env
@@ -49,32 +51,45 @@ cp .env.example .env
 # PostgreSQL starten
 npm run db:up
 
+# Gemeinsames Paket bauen, Prisma-Client erzeugen,
 # Schema anlegen und Demodaten einspielen
-npm run db:migrate
-npm run db:seed
+npm run setup
 
 # API (Port 4000) und Web (Port 3000) starten
 npm run dev
 ```
 
-- Web: <http://localhost:3000>
+- Web: <http://localhost:3000> – Anmeldung unter `/login`
 - API: <http://localhost:4000/api>
 - OpenAPI-Dokumentation: <http://localhost:4000/api/docs>
 
 Die Zugangsdaten der Demodaten werden am Ende des Seed-Laufs ausgegeben.
 
+Ohne Docker genügt eine beliebige erreichbare PostgreSQL-Instanz ab Version 14;
+dann entfällt `npm run db:up` und in der `.env` wird `DATABASE_URL` auf diese
+Instanz gezeigt. Die `.env` liegt bewusst nur im Wurzelverzeichnis – API, Prisma
+und Compose lesen dieselbe Datei.
+
+`packages/shared` wird über sein Build-Ergebnis eingebunden. Ein `npm install`
+allein genügt deshalb nicht; `npm run setup` (oder `npm run build:shared`) muss
+einmal gelaufen sein, sonst finden API und Web das Paket nicht. `npm run dev`
+baut es vorab und hält es anschließend im Watch-Modus.
+
 ## Skripte im Wurzelverzeichnis
 
-| Skript               | Wirkung                                       |
-| -------------------- | --------------------------------------------- |
-| `npm run dev`        | API und Web parallel im Watch-Modus           |
-| `npm run build`      | Alle Workspaces bauen                         |
-| `npm run typecheck`  | TypeScript-Prüfung ohne Ausgabe               |
-| `npm run lint`       | ESLint über alle Workspaces                   |
-| `npm test`           | Tests aller Workspaces                        |
-| `npm run db:up/down` | PostgreSQL per Docker Compose starten/stoppen |
-| `npm run db:migrate` | Prisma-Migrationen anwenden                   |
-| `npm run db:seed`    | Demodaten einspielen                          |
+| Skript                 | Wirkung                                            |
+| ---------------------- | -------------------------------------------------- |
+| `npm run setup`        | Paket bauen, Client erzeugen, migrieren, Demodaten |
+| `npm run dev`          | Shared, API und Web parallel im Watch-Modus        |
+| `npm run build`        | Alle Workspaces bauen                              |
+| `npm run build:shared` | Nur das gemeinsame Paket bauen                     |
+| `npm run typecheck`    | TypeScript-Prüfung ohne Ausgabe                    |
+| `npm run lint`         | ESLint über alle Workspaces                        |
+| `npm test`             | Tests aller Workspaces                             |
+| `npm run db:up/down`   | PostgreSQL per Docker Compose starten/stoppen      |
+| `npm run db:generate`  | Prisma-Client erzeugen                             |
+| `npm run db:migrate`   | Prisma-Migrationen anwenden                        |
+| `npm run db:seed`      | Demodaten einspielen                               |
 
 ## Hinweis
 
