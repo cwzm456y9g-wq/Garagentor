@@ -100,6 +100,10 @@ Auf einem eigenen Server genügen Docker und eine Domain, die per A-Eintrag auf
 den Server zeigt. Caddy holt das Zertifikat selbst und liefert Oberfläche und
 Schnittstelle unter derselben Domain aus – damit entfällt CORS.
 
+Die vollständige Einrichtung vom leeren Server bis zur laufenden Anwendung
+beschreibt **[deploy/server-einrichten.md](deploy/server-einrichten.md)**, samt
+Firewall, Sicherung und Checkliste. Die Kurzfassung:
+
 ```bash
 cp .env.prod.example .env.prod
 chmod 600 .env.prod
