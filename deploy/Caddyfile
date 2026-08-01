@@ -1,0 +1,39 @@
+# Caddy holt und erneuert das Zertifikat selbstständig über Let's Encrypt.
+# Voraussetzung: die Domain zeigt per A-/AAAA-Eintrag auf diesen Server und
+# Port 80 und 443 sind von außen erreichbar.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Die Schnittstelle behält ihr Präfix, die Anwendung erwartet /api.
+	handle /api/* {
+		# Dokumenten-Upload: Caddy begrenzt zusätzlich, die Anwendung prüft
+		# Typ und Größe anschließend selbst.
+		request_body {
+			max_size {$MAX_UPLOAD_MB:25}MB
+		}
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output file /data/zugriff.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}

@@ -20,7 +20,8 @@
     "db:push": "prisma db push",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:admin": "ts-node -P prisma/tsconfig.json prisma/admin.ts"
   },
   "dependencies": {
     "@garagentor/shared": "*",

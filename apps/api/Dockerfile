@@ -16,6 +16,13 @@ RUN npm run build --workspace @garagentor/shared \
   && npm run db:generate --workspace @garagentor/api \
   && npm run build --workspace @garagentor/api
 
+# Die Builder-Stufe behält ihre Entwicklungsabhängigkeiten und dient deshalb
+# im Betrieb als Werkzeugkasten: sie bringt das Prisma-CLI für Migrationen
+# und ts-node für das Anlegen des ersten Administrators mit.
+WORKDIR /app/apps/api
+
+FROM builder AS pruner
+WORKDIR /app
 # Entwicklungsabhängigkeiten für das Laufzeit-Image entfernen.
 RUN npm prune --omit=dev
 
@@ -25,13 +32,13 @@ ENV NODE_ENV=production
 
 RUN addgroup -S app && adduser -S app -G app
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --from=pruner /app/node_modules ./node_modules
+COPY --from=pruner /app/package.json ./package.json
+COPY --from=pruner /app/packages/shared/dist ./packages/shared/dist
+COPY --from=pruner /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=pruner /app/apps/api/dist ./apps/api/dist
+COPY --from=pruner /app/apps/api/package.json ./apps/api/package.json
+COPY --from=pruner /app/apps/api/prisma ./apps/api/prisma
 
 RUN mkdir -p /app/uploads && chown -R app:app /app/uploads
 USER app
