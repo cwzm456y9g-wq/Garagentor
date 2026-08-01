@@ -893,6 +893,128 @@ async function main(): Promise<void> {
     });
   }
 
+  /* Termine -------------------------------------------------------------- */
+
+  // Die Einsatzplanung greift die offenen Vorgänge auf: die Nachprüfung der
+  // stillgelegten Anlage, die fällige Wartung aus dem Vertrag, den überzogenen
+  // Prüftermin und den Folgeauftrag aus dem Servicebericht.
+  const termine = [
+    {
+      title: 'Lichtschranke tauschen – Tiefgarage Wohnpark Aasee',
+      type: 'REPARATUR' as const,
+      status: 'BESTAETIGT' as const,
+      start: atTime(daysFromNow(1), 8, 0),
+      end: atTime(daysFromNow(1), 10, 0),
+      customerId: hausverwaltung.id,
+      siteId: hausverwaltung.sites[0]?.id,
+      location: 'Tiefgarageneinfahrt',
+      description:
+        'Einweglichtschranke ersetzen (Artikel A-00004). Anlage ist seit der Prüfung ' +
+        'außer Betrieb, Zufahrt bis dahin nur über die Hofeinfahrt.',
+      assignees: [brinkmann.id],
+    },
+    {
+      title: 'Nachprüfung nach Instandsetzung – TOR-00004',
+      type: 'PRUEFUNG' as const,
+      status: 'GEPLANT' as const,
+      start: atTime(daysFromNow(1), 10, 0),
+      end: atTime(daysFromNow(1), 11, 0),
+      customerId: hausverwaltung.id,
+      siteId: hausverwaltung.sites[0]?.id,
+      location: 'Tiefgarageneinfahrt',
+      description: 'Protokoll PR-2026-0004 abschließen und Anlage wieder freigeben.',
+      assignees: [brinkmann.id],
+    },
+    {
+      title: 'Prüftermin überzogen – Schnelllauftor Halle 1',
+      type: 'PRUEFUNG' as const,
+      status: 'GEPLANT' as const,
+      start: atTime(daysFromNow(3), 7, 30),
+      end: atTime(daysFromNow(3), 9, 30),
+      customerId: logistik.id,
+      siteId: logistik.sites[0]?.id,
+      location: 'Halle 1, Warenausgang Tor 3',
+      description: 'Wiederkehrende Prüfung nach ASR A1.7, Frist ist seit zwölf Tagen abgelaufen.',
+      assignees: [sander.id],
+    },
+    {
+      title: 'Steuerung instand setzen – Folgeauftrag SB-2026-0003',
+      type: 'REPARATUR' as const,
+      status: 'GEPLANT' as const,
+      start: atTime(daysFromNow(6), 13, 0),
+      end: atTime(daysFromNow(6), 15, 30),
+      customerId: logistik.id,
+      siteId: logistik.sites[0]?.id,
+      location: 'Halle 1, Warenausgang Tor 3',
+      description: 'Absolutwertgeber tauschen, sobald das Ersatzteil eingetroffen ist.',
+      assignees: [sander.id],
+    },
+    {
+      title: 'Aufmaß Garagentor – Familie Hoffmann',
+      type: 'AUFMASS' as const,
+      status: 'BESTAETIGT' as const,
+      start: atTime(daysFromNow(8), 14, 0),
+      end: atTime(daysFromNow(8), 15, 0),
+      customerId: privat.id,
+      siteId: privat.sites[0]?.id,
+      location: 'Lindenweg 5, Greven',
+      description: 'Maße für Angebot AN-2026-0001 bestätigen, Sturzhöhe prüfen.',
+      assignees: [weber.id],
+    },
+    {
+      title: 'Wartung Toranlagen Logistikzentrum West',
+      type: 'WARTUNG' as const,
+      status: 'GEPLANT' as const,
+      start: atTime(daysFromNow(15), 7, 0),
+      end: atTime(daysFromNow(15), 12, 0),
+      customerId: logistik.id,
+      siteId: logistik.sites[0]?.id,
+      location: 'Halle 1 und 2',
+      description:
+        'Turnusmäßiger Einsatz aus Wartungsvertrag WV-2024-0001, einschließlich ' +
+        'wiederkehrender Prüfung beider Anlagen.',
+      assignees: [brinkmann.id, sander.id],
+    },
+    {
+      title: 'Sicherheitsunterweisung und Werkstatttag',
+      type: 'INTERN' as const,
+      status: 'BESTAETIGT' as const,
+      start: atTime(daysFromNow(17), 0, 0),
+      end: atTime(daysFromNow(17), 23, 59),
+      allDay: true,
+      location: 'Betriebshof Münster',
+      description: 'Jährliche Unterweisung, danach Fahrzeug- und Werkzeugkontrolle.',
+      assignees: [weber.id, brinkmann.id, kohl.id, sander.id],
+    },
+    {
+      title: 'Störungseinsatz Rollgitter – erledigt',
+      type: 'REPARATUR' as const,
+      status: 'ERLEDIGT' as const,
+      start: atTime(daysFromNow(-46), 8, 0),
+      end: atTime(daysFromNow(-46), 11, 45),
+      customerId: hausverwaltung.id,
+      siteId: hausverwaltung.sites[0]?.id,
+      location: 'Tiefgarageneinfahrt',
+      description: 'Dokumentiert in Servicebericht SB-2026-0001.',
+      assignees: [brinkmann.id],
+    },
+  ];
+
+  for (const { assignees, ...termin } of termine) {
+    const zuweisung = assignees.map((id) => ({ id }));
+    const vorhanden = await prisma.appointment.findFirst({ where: { title: termin.title } });
+    if (vorhanden) {
+      await prisma.appointment.update({
+        where: { id: vorhanden.id },
+        // set statt connect: entfernte Zuweisungen sollen beim erneuten Lauf
+        // auch wieder verschwinden.
+        data: { ...termin, assignees: { set: zuweisung } },
+      });
+    } else {
+      await prisma.appointment.create({ data: { ...termin, assignees: { connect: zuweisung } } });
+    }
+  }
+
   /* Beleg: Angebot ------------------------------------------------------ */
 
   const tor = articleByNumber.get('A-00001');
