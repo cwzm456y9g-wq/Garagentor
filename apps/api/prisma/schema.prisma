@@ -8,9 +8,19 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Zwei Verbindungen, weil Supabase zwei verlangt:
+//
+// url        – der Supavisor-Pooler (Port 6543). Über ihn läuft der Betrieb.
+//              Hostinger startet den Node-Prozess bei Bedarf neu und kann ihn
+//              mehrfach halten; ohne Pooler wären die Verbindungen der
+//              Datenbank schnell aufgebraucht.
+// directUrl  – die direkte Verbindung (Port 5432). Nur für Migrationen. Der
+//              Pooler kann die dafür nötigen Sperren und Sitzungsvariablen
+//              nicht durchreichen.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /**
