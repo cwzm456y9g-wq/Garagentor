@@ -6,6 +6,7 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+import { RequestContextInterceptor } from './common/audit/request-context.interceptor';
 import { DecimalInterceptor } from './common/interceptors/decimal.interceptor';
 import { loadConfiguration } from './config/configuration';
 
@@ -49,7 +50,7 @@ async function bootstrap(): Promise<void> {
       stopAtFirstError: true,
     }),
   );
-  app.useGlobalInterceptors(new DecimalInterceptor());
+  app.useGlobalInterceptors(new RequestContextInterceptor(), new DecimalInterceptor());
   app.useGlobalFilters(new PrismaExceptionFilter());
   app.enableShutdownHooks();
 

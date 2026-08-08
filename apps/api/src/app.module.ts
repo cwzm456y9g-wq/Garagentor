@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
+import { AuditModule } from './common/audit/audit.module';
 import { NumberingModule } from './common/numbering/numbering.module';
 import { loadConfiguration } from './config/configuration';
 import { CustomersModule } from './customers/customers.module';
@@ -30,6 +31,7 @@ import { SettingsModule } from './settings/settings.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    AuditModule,
     NumberingModule,
     AuthModule,
     CustomersModule,

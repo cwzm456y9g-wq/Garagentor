@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { NUMBER_RANGE_DEFAULTS } from '@garagentor/shared';
 import { Prisma } from '@prisma/client';
 import { NumberRangeService } from '../common/numbering/number-range.service';
+import { AuditService } from '../common/audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { SavePresetDto, UpdateNumberRangeDto, UpsertSettingDto } from './dto/settings.dto';
 
@@ -10,6 +11,7 @@ export class SettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbers: NumberRangeService,
+    private readonly audit: AuditService,
   ) {}
 
   async findAll(category?: string) {
@@ -30,19 +32,33 @@ export class SettingsService {
   /** Legt eine Einstellung an oder ersetzt ihren Wert. */
   async upsert(key: string, dto: UpsertSettingDto) {
     this.pruefeWert(key, dto.value);
-    return this.prisma.setting.upsert({
-      where: { key },
-      update: {
-        value: dto.value as Prisma.InputJsonValue,
-        ...(dto.category === undefined ? {} : { category: dto.category }),
-        ...(dto.description === undefined ? {} : { description: dto.description }),
-      },
-      create: {
-        key,
-        value: dto.value as Prisma.InputJsonValue,
-        category: dto.category ?? 'allgemein',
-        description: dto.description ?? null,
-      },
+
+    return this.prisma.$transaction(async (tx) => {
+      const gespeichert = await tx.setting.upsert({
+        where: { key },
+        update: {
+          value: dto.value as Prisma.InputJsonValue,
+          ...(dto.category === undefined ? {} : { category: dto.category }),
+          ...(dto.description === undefined ? {} : { description: dto.description }),
+        },
+        create: {
+          key,
+          value: dto.value as Prisma.InputJsonValue,
+          category: dto.category ?? 'allgemein',
+          description: dto.description ?? null,
+        },
+      });
+
+      // Firmendaten, Steuerangaben und Mahnvorgaben wirken auf jeden künftigen
+      // Beleg – wer sie ändert, gehört festgehalten. Der Wert selbst bleibt
+      // außen vor: er trägt unter anderem das Logo als Data-URL.
+      await this.audit.record(tx, 'EINSTELLUNG_GEAENDERT', {
+        entityType: 'SETTING',
+        entityId: key,
+        label: key,
+      });
+
+      return gespeichert;
     });
   }
 

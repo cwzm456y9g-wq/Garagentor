@@ -10,6 +10,7 @@ import { prepareLineItems, withoutOptionalFlag } from '../common/dto/line-item.d
 import { orderBy, paginate } from '../common/dto/pagination.dto';
 import { NumberRangeService } from '../common/numbering/number-range.service';
 import { CustomersService } from '../customers/customers.service';
+import { AuditService } from '../common/audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { openAmountOf, OPEN_STATUSES, payableAmountOf } from './invoice-status';
 import type {
@@ -28,6 +29,7 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly numbers: NumberRangeService,
     private readonly customers: CustomersService,
+    private readonly audit: AuditService,
   ) {}
 
   async findAll(query: InvoiceQueryDto): Promise<Paginated<unknown>> {
@@ -230,10 +232,22 @@ export class InvoicesService {
       throw new BadRequestException('Eine Rechnung ohne Positionen kann nicht gestellt werden.');
     }
 
-    return this.prisma.invoice.update({
-      where: { id },
-      data: { status: InvoiceStatus.OFFEN, sentAt: new Date() },
-      include: { customer: true },
+    return this.prisma.$transaction(async (tx) => {
+      const gestellt = await tx.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.OFFEN, sentAt: new Date() },
+        include: { customer: true },
+      });
+
+      // Ab hier ist der Beleg unveränderlich; der Übergang gehört protokolliert.
+      await this.audit.record(
+        tx,
+        'RECHNUNG_GESTELLT',
+        { entityType: 'INVOICE', entityId: id, label: invoice.invoiceNumber },
+        { von: InvoiceStatus.ENTWURF, nach: InvoiceStatus.OFFEN, brutto: gestellt.grossTotal },
+      );
+
+      return gestellt;
     });
   }
 
@@ -286,6 +300,13 @@ export class InvoicesService {
         },
         include: { payments: { orderBy: { date: 'desc' } } },
       });
+
+      await this.audit.record(
+        tx,
+        'ZAHLUNG_GEBUCHT',
+        { entityType: 'INVOICE', entityId: id, label: invoice.invoiceNumber },
+        { betrag: dto.amount, gezahltGesamt: paidAmount, vollstaendig: fullyPaid },
+      );
 
       // Mit dem vollständigen Ausgleich sind offene Mahnungen erledigt.
       if (fullyPaid) {
@@ -347,7 +368,15 @@ export class InvoicesService {
       throw new ConflictException('Die Rechnung ist bereits storniert.');
     }
     if (invoice.status === InvoiceStatus.ENTWURF) {
-      await this.prisma.invoice.delete({ where: { id } });
+      // Ein Entwurf war nie ein Beleg und wird entfernt statt storniert.
+      await this.prisma.$transaction(async (tx) => {
+        await this.audit.record(tx, 'RECHNUNGSENTWURF_GELOESCHT', {
+          entityType: 'INVOICE',
+          entityId: id,
+          label: invoice.invoiceNumber,
+        });
+        await tx.invoice.delete({ where: { id } });
+      });
       return { deleted: true, id };
     }
 
@@ -368,6 +397,13 @@ export class InvoicesService {
         where: { invoiceId: id, status: { in: ['ENTWURF', 'VERSENDET'] } },
         data: { status: 'ABGEBROCHEN' },
       });
+
+      await this.audit.record(
+        tx,
+        'RECHNUNG_STORNIERT',
+        { entityType: 'INVOICE', entityId: id, label: invoice.invoiceNumber },
+        { von: invoice.status, grund: dto.reason ?? null, brutto: invoice.grossTotal },
+      );
 
       if (invoice.paidAmount.toNumber() <= 0) {
         return { invoice: cancelled, creditNote: null };
