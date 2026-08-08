@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { dienstAnmelden } from '@/lib/dienst';
 import { DarstellungWahl } from './darstellung';
 import { GlobalSearch } from './global-search';
+import { OfflineAnzeige } from './offline-anzeige';
 import { NAVIGATION } from './navigation';
 import { Button, cx, LoadingState } from './ui';
 
@@ -19,6 +21,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Der Zwischenspeicher für den Betrieb ohne Netz wird einmalig angemeldet.
+  useEffect(() => {
+    dienstAnmelden();
+  }, []);
 
   // Beim Seitenwechsel schließt die mobile Navigation.
   useEffect(() => {
@@ -122,7 +129,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <GlobalSearch />
 
-          <div className="relative ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <OfflineAnzeige />
+          </div>
+
+          <div className="relative">
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}

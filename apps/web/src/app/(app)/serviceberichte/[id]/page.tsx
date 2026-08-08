@@ -39,6 +39,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function ServiceReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, loading, error, reload } = useApi<ServiceReport>(`/service-reports/${id}`);
+  const nummer = data?.reportNumber ?? id;
   const fotos = useApi<Paginated<DocumentEntry>>('/documents', {
     entityType: 'SERVICE_REPORT',
     entityId: id,
@@ -50,7 +51,7 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
   const [signatureCustomer, setSignatureCustomer] = useState<string | null>(null);
 
   const complete = useAction((body: Record<string, unknown>) =>
-    api.post(`/service-reports/${id}/complete`, body),
+    api.postOffline(`/service-reports/${id}/complete`, body, `Abschluss Bericht ${nummer}`),
   );
   const pdf = useAction(() => api.openFile(`/service-reports/${id}/pdf`));
 
@@ -70,7 +71,7 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
     form.append('category', 'FOTO');
     form.append('entityType', 'SERVICE_REPORT');
     form.append('entityId', id);
-    return api.post('/documents', form);
+    return api.postOffline('/documents', form, `Foto ${nummer}`);
   }
 
   return (

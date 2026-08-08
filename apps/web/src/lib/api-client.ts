@@ -1,4 +1,5 @@
 import type { ApiErrorBody, AuthTokens, LoginResponse, Paginated } from '@garagentor/shared';
+import { einreihen, istNetzfehler, uebertragen, type WartendeAnfrage } from './offline';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
@@ -111,6 +112,13 @@ export interface RequestOptions {
   /** Ohne Authentifizierung senden, etwa beim Login. */
   anonymous?: boolean;
   signal?: AbortSignal;
+  /**
+   * Darf ohne Netz in die Warteschlange wandern.
+   *
+   * Nur für Arbeiten vor Ort gedacht. Der Text beschreibt den Vorgang in der
+   * Übersicht der wartenden Übertragungen.
+   */
+  offline?: string;
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -161,7 +169,18 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     });
   };
 
-  let response = await send(options.anonymous ? null : tokenStore.access);
+  let response: Response;
+  try {
+    response = await send(options.anonymous ? null : tokenStore.access);
+  } catch (fehler) {
+    // Kein Netz. Arbeiten vor Ort warten in der Warteschlange, alles andere
+    // meldet den Fehlschlag – eine erfundene Erfolgsmeldung wäre schlimmer.
+    if (options.offline && istNetzfehler(fehler)) {
+      await inWarteschlange(path, options);
+      return undefined as T;
+    }
+    throw fehler;
+  }
 
   if (response.status === 401 && !options.anonymous) {
     const token = await refreshAccessToken();
@@ -182,6 +201,60 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/**
+ * Legt eine Anfrage für später ab. FormData wird auseinandergenommen, weil
+ * IndexedDB damit nichts anfangen kann – der Blob überlebt, die Felder auch.
+ */
+async function inWarteschlange(path: string, options: RequestOptions): Promise<void> {
+  const methode = (options.method ?? 'POST') as WartendeAnfrage['methode'];
+
+  if (options.body instanceof FormData) {
+    const form = options.body;
+    const felder: Record<string, string> = {};
+    let datei: { feld: string; blob: Blob; name: string } | null = null;
+
+    for (const [schluessel, wert] of form.entries()) {
+      if (wert instanceof File) datei = { feld: schluessel, blob: wert, name: wert.name };
+      else felder[schluessel] = wert;
+    }
+    if (!datei) throw new Error('Ohne Datei lässt sich der Upload nicht vormerken.');
+
+    await einreihen({
+      bezeichnung: options.offline!,
+      pfad: path,
+      methode,
+      datei: { ...datei, felder },
+    });
+    return;
+  }
+
+  await einreihen({
+    bezeichnung: options.offline!,
+    pfad: path,
+    methode,
+    rumpf: options.body,
+  });
+}
+
+/**
+ * Schickt einen wartenden Eintrag hinaus. Wird von der Anzeige der
+ * Warteschlange aufgerufen, sobald wieder Netz da ist.
+ */
+export function warteschlangeUebertragen() {
+  return uebertragen(async (eintrag) => {
+    if (eintrag.datei) {
+      const form = new FormData();
+      form.append(eintrag.datei.feld, eintrag.datei.blob, eintrag.datei.name);
+      for (const [schluessel, wert] of Object.entries(eintrag.datei.felder)) {
+        form.append(schluessel, wert);
+      }
+      await request(eintrag.pfad, { method: eintrag.methode, body: form });
+      return;
+    }
+    await request(eintrag.pfad, { method: eintrag.methode, body: eintrag.rumpf });
+  });
 }
 
 /**
@@ -221,6 +294,15 @@ export const api = {
     request<Paginated<T>>(path, { query, signal }),
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
+
+  /**
+   * Wie post/patch, darf aber ohne Netz warten. Nur für Arbeiten vor Ort –
+   * `bezeichnung` steht danach in der Liste der wartenden Übertragungen.
+   */
+  postOffline: <T>(path: string, body: unknown, bezeichnung: string) =>
+    request<T>(path, { method: 'POST', body, offline: bezeichnung }),
+  patchOffline: <T>(path: string, body: unknown, bezeichnung: string) =>
+    request<T>(path, { method: 'PATCH', body, offline: bezeichnung }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   /**

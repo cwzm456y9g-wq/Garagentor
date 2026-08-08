@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api, ApiError, setSessionExpiredHandler, tokenStore } from './api-client';
+import { dienstDatenVerwerfen } from './dienst';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -83,6 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!(error instanceof ApiError)) throw error;
     } finally {
       tokenStore.clear();
+      // Die abgelegten Daten hängen an der Adresse, nicht am Token: ohne
+      // dieses Verwerfen sähe auf einem geteilten Tablet die nächste Person
+      // den Stand der vorigen.
+      await dienstDatenVerwerfen();
       setUser(null);
       router.replace('/login');
     }

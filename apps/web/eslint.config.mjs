@@ -23,4 +23,20 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Der Zwischenspeicher läuft nicht im Fenster, sondern als Service Worker
+    // mit eigenem Satz an Globalen.
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        Request: 'readonly',
+        URL: 'readonly',
+        Promise: 'readonly',
+        console: 'readonly',
+      },
+    },
+  },
 );

@@ -39,6 +39,8 @@ interface CheckDraft {
 export default function InspectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, loading, error, reload } = useApi<Inspection>(`/inspections/${id}`);
+  // Für die Beschriftung in der Warteschlange; vor dem Laden reicht die Kennung.
+  const nummer = data?.inspectionNumber ?? id;
 
   // Alle Fotos des Protokolls werden einmal geladen und je Prüfpunkt verteilt –
   // 31 Einzelabfragen wären auf dem Telefon spürbar langsam.
@@ -70,9 +72,13 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
     );
   }, [data]);
 
-  const save = useAction((checks: unknown[]) => api.patch(`/inspections/${id}/checks`, { checks }));
+  // Die Arbeiten am Protokoll dürfen ohne Netz in die Warteschlange: eine
+  // Prüfung in der Tiefgarage bricht sonst mitten im Katalog ab.
+  const save = useAction((checks: unknown[]) =>
+    api.patchOffline(`/inspections/${id}/checks`, { checks }, `Prüfergebnisse ${nummer}`),
+  );
   const complete = useAction((body: Record<string, unknown>) =>
-    api.post(`/inspections/${id}/complete`, body),
+    api.postOffline(`/inspections/${id}/complete`, body, `Abschluss Prüfung ${nummer}`),
   );
   const pdf = useAction(() => api.openFile(`/inspections/${id}/pdf`));
 
@@ -97,7 +103,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
     form.append('entityType', 'INSPECTION');
     form.append('entityId', id);
     if (checkKey) form.append('entityRef', checkKey);
-    return api.post('/documents', form);
+    return api.postOffline('/documents', form, `Foto ${nummer}`);
   }
 
   // Prüfpunkte werden nach den Gruppen des Katalogs gegliedert.

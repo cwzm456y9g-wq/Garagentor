@@ -8,7 +8,10 @@ import {
   formatTime,
 } from '@garagentor/shared';
 import Link from 'next/link';
+import { useState } from 'react';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
+import { apiBaseUrl, tokenStore } from '@/lib/api-client';
+import { fuerUnterwegsLaden } from '@/lib/dienst';
 import { useApi } from '@/lib/hooks';
 import type { MeinTag } from '@/lib/types';
 
@@ -21,6 +24,36 @@ import type { MeinTag } from '@/lib/types';
  */
 export default function MeinTagPage() {
   const { data, loading, error, reload } = useApi<MeinTag>('/mein-tag');
+  const [mitgenommen, setMitgenommen] = useState<'offen' | 'laeuft' | 'fertig' | 'geht-nicht'>(
+    'offen',
+  );
+
+  /**
+   * Legt die Daten der offenen Arbeiten in den Zwischenspeicher.
+   *
+   * Ohne diesen Schritt steht offline nur, was zufällig schon einmal geöffnet
+   * war. Wer morgens in die Tiefgarage fährt, drückt hier einmal – danach
+   * lässt sich jedes Protokoll dieser Liste auch ohne Empfang aufmachen.
+   */
+  async function mitnehmen() {
+    if (!data) return;
+    setMitgenommen('laeuft');
+
+    const adressen = [
+      `${apiBaseUrl}/mein-tag`,
+      ...data.offeneProtokolle.map((p) => `${apiBaseUrl}/inspections/${p.id}`),
+      ...data.offeneProtokolle.map(
+        (p) => `${apiBaseUrl}/documents?entityType=INSPECTION&entityId=${p.id}&pageSize=200`,
+      ),
+      ...data.offeneBerichte.map((b) => `${apiBaseUrl}/service-reports/${b.id}`),
+      ...data.offeneBerichte.map(
+        (b) => `${apiBaseUrl}/documents?entityType=SERVICE_REPORT&entityId=${b.id}&pageSize=200`,
+      ),
+    ];
+
+    const geklappt = await fuerUnterwegsLaden(adressen, tokenStore.access);
+    setMitgenommen(geklappt ? 'fertig' : 'geht-nicht');
+  }
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <LoadingState />;
@@ -39,6 +72,25 @@ export default function MeinTagPage() {
         <p className="mt-0.5 text-sm text-slate-500">
           {formatDate(data.datum)} · {formatHours(data.stundenHeute)} erfasst
         </p>
+
+        {(data.offeneProtokolle.length > 0 || data.offeneBerichte.length > 0) && (
+          <div className="mt-3">
+            <Button
+              variant="secondary"
+              loading={mitgenommen === 'laeuft'}
+              onClick={() => void mitnehmen()}
+            >
+              Für unterwegs laden
+            </Button>
+            <p className="mt-1.5 text-xs text-slate-500">
+              {mitgenommen === 'fertig'
+                ? 'Die offenen Arbeiten liegen jetzt auf dem Gerät und lassen sich auch ohne Empfang öffnen.'
+                : mitgenommen === 'geht-nicht'
+                  ? 'Dieser Browser hält nichts für unterwegs vor. Die Seiten brauchen dann eine Verbindung.'
+                  : 'Vor der Fahrt einmal drücken: danach gehen Protokolle und Berichte auch ohne Empfang.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {!data.mitarbeiter && (
