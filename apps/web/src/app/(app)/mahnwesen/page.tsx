@@ -65,7 +65,7 @@ export default function DunningPage() {
       )}
 
       {ran !== null && (
-        <div className="mb-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="mb-6 meldung-erfolg">
           Der Mahnlauf hat {ran} Mahnung(en) als Entwurf angelegt. Vor dem Versand können sie unten
           geprüft werden.
         </div>
@@ -110,7 +110,7 @@ export default function DunningPage() {
                     <td className="tabular">
                       <Link
                         href={`/rechnungen/${row.invoiceId}`}
-                        className="text-marine-700 font-medium hover:underline"
+                        className="text-verweis font-medium hover:underline"
                       >
                         {row.invoiceNumber}
                       </Link>
@@ -170,7 +170,7 @@ export default function DunningPage() {
                       {dunning.invoice && (
                         <Link
                           href={`/rechnungen/${dunning.invoice.id}`}
-                          className="text-marine-700 font-medium hover:underline"
+                          className="text-verweis font-medium hover:underline"
                         >
                           {dunning.invoice.invoiceNumber}
                         </Link>
@@ -215,7 +215,7 @@ export default function DunningPage() {
                       </Badge>
                     </td>
                     <td className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <Button
                           size="sm"
                           variant="secondary"

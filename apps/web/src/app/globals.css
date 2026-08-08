@@ -4,6 +4,13 @@
  * Gestaltungsraster der Anwendung. Die Farben sind bewusst zurückhaltend
  * gewählt: ein tiefes Blaugrau als Grundton, ein warmes Bernstein als Akzent
  * für Handlungen und Hinweise auf Fristen.
+ *
+ * Helle und dunkle Darstellung entstehen nicht über `dark:`-Varianten an jeder
+ * einzelnen Klasse – bei knapp fünfhundert Farbangaben wäre das nicht zu
+ * pflegen –, sondern über die Farbwerte selbst: die Grautöne und ein paar
+ * benannte Rollen werden weiter unten neu belegt. Wer `text-slate-600`
+ * schreibt, bekommt damit in beiden Darstellungen automatisch den richtigen
+ * Wert.
  */
 @theme {
   --color-marine-50: #f2f6fa;
@@ -29,14 +36,141 @@
   --color-bernstein-800: #9c400f;
   --color-bernstein-900: #7e3610;
 
+  /*
+   * Benannte Rollen. Sie stehen dort, wo eine feste Farbe in der dunklen
+   * Darstellung nicht mehr aufgeht: Weiß bleibt auf einem farbigen Knopf
+   * richtig, als Kartenfläche nicht.
+   */
+  --color-flaeche: #ffffff;
+  --color-flaeche-leise: #f8fafc;
+  --color-verweis: #30567b;
+
+  --color-hinweis: #7e3610;
+  --color-hinweis-flaeche: #fff9ed;
+  --color-hinweis-rand: #ffdfa8;
+
+  --color-erfolg: #065f46;
+  --color-erfolg-flaeche: #ecfdf5;
+  --color-erfolg-rand: #a7f3d0;
+
+  --color-fehler: #b91c1c;
+  --color-fehler-flaeche: #fef2f2;
+  --color-fehler-rand: #fecaca;
+
+  --color-info: #30567b;
+  --color-info-flaeche: #f2f6fa;
+  --color-info-rand: #c8dbeb;
+
+  /* Hinterlegung der Zeile unter dem Zeiger. */
+  --color-flaeche-aktiv: #f2f6fa;
+
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 }
 
+/*
+ * Dunkle Darstellung.
+ *
+ * Die Grautöne werden umgekehrt: aus dem hellsten wird der dunkelste. Damit
+ * kippt jede vorhandene Angabe mit, ohne dass eine einzige Seite angefasst
+ * werden muss. Die Werte sind nicht bloß gespiegelt, sondern nachjustiert –
+ * heller Text auf dunklem Grund wirkt bei gleicher Helligkeit kräftiger und
+ * würde sonst blenden.
+ *
+ * Der Block steht zweimal da, weil sich eine Medienabfrage und ein Attribut in
+ * CSS nicht zu einer Regel zusammenfassen lassen. Ohne die Attributform gäbe
+ * es keine Wahl gegen die Einstellung des Geräts.
+ */
+@layer base {
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme='hell']) {
+      --color-slate-50: #131c28;
+      --color-slate-100: #18222f;
+      --color-slate-200: #293646;
+      --color-slate-300: #38465a;
+      --color-slate-400: #7b8b9e;
+      --color-slate-500: #9aa9bb;
+      --color-slate-600: #b6c3d1;
+      --color-slate-700: #c9d5e1;
+      --color-slate-800: #dbe5ee;
+      --color-slate-900: #eef4f9;
+
+      --color-flaeche: #1b2431;
+      --color-flaeche-leise: #212c3b;
+      --color-verweis: #8fbbe4;
+
+      --color-hinweis: #ffd08a;
+      --color-hinweis-flaeche: #3a2a12;
+      --color-hinweis-rand: #6b4a1c;
+
+      --color-erfolg: #86efac;
+      --color-erfolg-flaeche: #12301f;
+      --color-erfolg-rand: #1f5537;
+
+      --color-fehler: #fca5a5;
+      --color-fehler-flaeche: #3a1717;
+      --color-fehler-rand: #6d2626;
+
+      --color-info: #9ec8ec;
+      --color-info-flaeche: #17293c;
+      --color-info-rand: #2b4966;
+
+      --color-flaeche-aktiv: #22303f;
+    }
+  }
+
+  html[data-theme='dunkel'] {
+    --color-slate-50: #131c28;
+    --color-slate-100: #18222f;
+    --color-slate-200: #293646;
+    --color-slate-300: #38465a;
+    --color-slate-400: #7b8b9e;
+    --color-slate-500: #9aa9bb;
+    --color-slate-600: #b6c3d1;
+    --color-slate-700: #c9d5e1;
+    --color-slate-800: #dbe5ee;
+    --color-slate-900: #eef4f9;
+
+    --color-flaeche: #1b2431;
+    --color-flaeche-leise: #212c3b;
+    --color-verweis: #8fbbe4;
+
+    --color-hinweis: #ffd08a;
+    --color-hinweis-flaeche: #3a2a12;
+    --color-hinweis-rand: #6b4a1c;
+
+    --color-erfolg: #86efac;
+    --color-erfolg-flaeche: #12301f;
+    --color-erfolg-rand: #1f5537;
+
+    --color-fehler: #fca5a5;
+    --color-fehler-flaeche: #3a1717;
+    --color-fehler-rand: #6d2626;
+
+    --color-info: #9ec8ec;
+    --color-info-flaeche: #17293c;
+    --color-info-rand: #2b4966;
+
+    --color-flaeche-aktiv: #22303f;
+  }
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Fenster und Formularelemente des Browsers folgen der Darstellung mit. */
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme='hell']) {
+      color-scheme: dark;
+    }
+  }
+
+  html[data-theme='dunkel'] {
+    color-scheme: dark;
   }
 
   body {
@@ -61,7 +195,7 @@
    * eigenen Scrollbereich zu bleiben.
    */
   .card {
-    @apply min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm;
+    @apply bg-flaeche min-w-0 rounded-lg border border-slate-200 shadow-sm;
   }
 
   .card-header {
@@ -82,7 +216,7 @@
   }
 
   .table-base thead th {
-    @apply border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-xs font-semibold
+    @apply bg-flaeche-leise border-b border-slate-200 px-4 py-2.5 text-left text-xs font-semibold
       uppercase tracking-wide text-slate-500;
   }
 
@@ -91,7 +225,7 @@
   }
 
   .table-base tbody tr:hover {
-    @apply bg-marine-50/60;
+    @apply bg-flaeche-aktiv;
   }
 
   .label {
@@ -99,7 +233,7 @@
   }
 
   .input {
-    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
+    @apply bg-flaeche w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900
       shadow-sm placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50;
   }
 
@@ -108,6 +242,23 @@
   }
 
   .error-text {
-    @apply mt-1 text-xs text-red-600;
+    @apply text-fehler mt-1 text-xs;
+  }
+
+  /*
+   * Meldungskästen: Hinweis, Erfolg, Fehler. Die gemeinsamen Angaben stehen
+   * dreimal da – `@apply` einer im selben Blatt definierten Klasse kennt
+   * Tailwind 4 nicht.
+   */
+  .meldung-hinweis {
+    @apply border-hinweis-rand bg-hinweis-flaeche text-hinweis rounded-md border px-4 py-3 text-sm;
+  }
+
+  .meldung-erfolg {
+    @apply border-erfolg-rand bg-erfolg-flaeche text-erfolg rounded-md border px-4 py-3 text-sm;
+  }
+
+  .meldung-fehler {
+    @apply border-fehler-rand bg-fehler-flaeche text-fehler rounded-md border px-4 py-3 text-sm;
   }
 }

@@ -51,7 +51,7 @@ export default function PostausgangPage() {
               {status.data.kopieAn ? `, stille Kopie an ${status.data.kopieAn}` : ''}.
             </p>
           ) : (
-            <p className="text-sm text-bernstein-900">
+            <p className="text-sm text-hinweis">
               Der Postausgang ist noch nicht eingerichtet. Die Zugangsdaten des Mailservers gehören
               als MAIL_HOST, MAIL_PORT, MAIL_USER, MAIL_PASSWORD und MAIL_FROM in die Umgebung des
               Servers – nicht in die Anwendung und nicht in die Datensicherung.
@@ -105,7 +105,7 @@ export default function PostausgangPage() {
                         <span className="mt-2 block whitespace-pre-line rounded-md bg-slate-50 p-3 text-xs text-slate-600">
                           {eintrag.body}
                           {eintrag.error && (
-                            <span className="mt-2 block font-medium text-red-700">
+                            <span className="mt-2 block font-medium text-fehler">
                               {eintrag.error}
                             </span>
                           )}

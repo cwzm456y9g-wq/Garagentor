@@ -196,7 +196,7 @@ export default function ReportsPage() {
                     <span className="text-slate-500">Prüfungen fällig</span>
                   </span>
                   <span>
-                    <span className="tabular block text-2xl font-semibold text-red-700">
+                    <span className="tabular block text-2xl font-semibold text-fehler">
                       {inspections.data?.ueberfaellig ?? 0}
                     </span>
                     <span className="text-slate-500">davon überfällig</span>

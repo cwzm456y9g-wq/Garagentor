@@ -13,6 +13,7 @@ import { HrModule } from './hr/hr.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { ExportsModule } from './exports/exports.module';
+import { FeldansichtModule } from './feldansicht/feldansicht.module';
 import { MailModule } from './mail/mail.module';
 import { PdfModule } from './pdf/pdf.module';
 import { OrdersModule } from './orders/orders.module';
@@ -44,6 +45,7 @@ import { SettingsModule } from './settings/settings.module';
     PdfModule,
     MailModule,
     ExportsModule,
+    FeldansichtModule,
     DoorsModule,
     InventoryModule,
     PlanningModule,

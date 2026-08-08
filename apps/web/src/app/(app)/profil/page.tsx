@@ -111,14 +111,14 @@ export default function ProfilePage() {
             {change.error && (
               <div
                 role="alert"
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+                className="rounded-md border border-fehler-rand bg-fehler-flaeche px-3 py-2 text-sm text-fehler"
               >
                 {change.error}
               </div>
             )}
 
             {done && (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <div className="rounded-md border border-erfolg-rand bg-erfolg-flaeche px-3 py-2 text-sm text-erfolg">
                 Das Passwort wurde geändert. Aus Sicherheitsgründen werden alle Sitzungen beendet –
                 Sie werden gleich abgemeldet.
               </div>

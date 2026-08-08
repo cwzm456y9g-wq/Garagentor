@@ -964,6 +964,20 @@ async function main(): Promise<void> {
       title: 'Nachprüfung nach Instandsetzung – TOR-00004',
       type: 'PRUEFUNG' as const,
       status: 'GEPLANT' as const,
+      start: atTime(daysFromNow(0), 8, 0),
+      end: atTime(daysFromNow(0), 9, 30),
+      customerId: logistik.id,
+      siteId: logistik.sites[0]?.id,
+      location: 'Halle 2, Rampe Nord',
+      description:
+        'Sichtprüfung nach der Reparatur, danach Schließkraft nachmessen. Schlüssel im ' +
+        'Pförtnerhaus abholen.',
+      assignees: [brinkmann.id],
+    },
+    {
+      title: 'Nachprüfung Rollgitter Tiefgarage',
+      type: 'PRUEFUNG' as const,
+      status: 'GEPLANT' as const,
       start: atTime(daysFromNow(1), 10, 0),
       end: atTime(daysFromNow(1), 11, 0),
       customerId: hausverwaltung.id,

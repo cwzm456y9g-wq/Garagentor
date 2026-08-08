@@ -190,7 +190,7 @@ function VorlagenLeiste({
                   neuLaden();
                 }
               }}
-              className="text-marine-700 hover:underline"
+              className="text-verweis hover:underline"
             >
               einsetzen
             </button>
@@ -199,7 +199,7 @@ function VorlagenLeiste({
               onClick={async () => {
                 if (await entfernen.run(vorlage.id)) vorlagen.reload();
               }}
-              className="px-1 text-slate-400 hover:text-red-600"
+              className="px-1 text-slate-400 hover:text-fehler"
               aria-label={`Vorlage ${vorlage.name} entfernen`}
             >
               ×
@@ -655,7 +655,7 @@ function MahnwesenKarte({ geladen, neuLaden }: { geladen: DunningSettings; neuLa
         </div>
 
         {veraltet && (
-          <p className="rounded-md bg-bernstein-50 px-4 py-3 text-sm text-bernstein-800">
+          <p className="rounded-md bg-hinweis-flaeche px-4 py-3 text-sm text-hinweis">
             <strong>Der Basiszinssatz ist überholt.</strong> Seit dem hinterlegten Datum ist ein
             Bekanntgabetermin verstrichen. Den aktuellen Wert veröffentlicht die Deutsche Bundesbank
             zum 1. Januar und 1. Juli.

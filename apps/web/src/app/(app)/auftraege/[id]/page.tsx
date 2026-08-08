@@ -214,7 +214,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         <td className="tabular">
                           <Link
                             href={`/rechnungen/${row.id}`}
-                            className="text-marine-700 font-medium hover:underline"
+                            className="text-verweis font-medium hover:underline"
                           >
                             {row.invoiceNumber}
                           </Link>
@@ -244,7 +244,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       <td className="tabular">
                         <Link
                           href={`/serviceberichte/${report.id}`}
-                          className="text-marine-700 font-medium hover:underline"
+                          className="text-verweis font-medium hover:underline"
                         >
                           {report.reportNumber}
                         </Link>
@@ -264,7 +264,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <>
                 <Link
                   href={`/kunden/${data.customer.id}`}
-                  className="text-marine-700 font-medium hover:underline"
+                  className="text-verweis font-medium hover:underline"
                 >
                   {customerDisplayName(data.customer)}
                 </Link>
@@ -295,7 +295,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   <dd>
                     <Link
                       href={`/angebote/${data.quote.id}`}
-                      className="text-marine-700 tabular hover:underline"
+                      className="text-verweis tabular hover:underline"
                     >
                       {data.quote.quoteNumber}
                     </Link>
@@ -308,7 +308,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   <dd>
                     <Link
                       href={`/projekte/${data.project.id}`}
-                      className="text-marine-700 hover:underline"
+                      className="text-verweis hover:underline"
                     >
                       {data.project.projectNumber}
                     </Link>

@@ -94,7 +94,7 @@ export default function ContractsPage() {
                 {contract.customer ? (
                   <Link
                     href={`/kunden/${contract.customer.id}`}
-                    className="text-marine-700 hover:underline"
+                    className="text-verweis hover:underline"
                   >
                     {customerDisplayName(contract.customer)}
                   </Link>
@@ -114,7 +114,7 @@ export default function ContractsPage() {
                 {contract.intervalMonths} Mon.
               </td>
               <td className="tabular whitespace-nowrap">
-                <span className={due ? 'font-medium text-bernstein-700' : 'text-slate-600'}>
+                <span className={due ? 'font-medium text-hinweis' : 'text-slate-600'}>
                   {formatDate(contract.nextServiceDate)}
                 </span>
               </td>

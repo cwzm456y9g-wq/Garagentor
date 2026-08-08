@@ -187,7 +187,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           <Card
             title="Toranlagen"
             actions={
-              <Link href="/tore" className="text-marine-700 text-sm font-medium hover:underline">
+              <Link href="/tore" className="text-verweis text-sm font-medium hover:underline">
                 Alle Anlagen
               </Link>
             }
@@ -213,7 +213,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                         <td className="tabular">
                           <Link
                             href={`/tore/${door.id}`}
-                            className="text-marine-700 font-medium hover:underline"
+                            className="text-verweis font-medium hover:underline"
                           >
                             {door.doorNumber}
                           </Link>
@@ -247,7 +247,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                           <td>
                             <Link
                               href={`/angebote/${quote.id}`}
-                              className="text-marine-700 tabular font-medium hover:underline"
+                              className="text-verweis tabular font-medium hover:underline"
                             >
                               {quote.quoteNumber}
                             </Link>
@@ -280,7 +280,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                           <td>
                             <Link
                               href={`/rechnungen/${invoice.id}`}
-                              className="text-marine-700 tabular font-medium hover:underline"
+                              className="text-verweis tabular font-medium hover:underline"
                             >
                               {invoice.invoiceNumber}
                             </Link>

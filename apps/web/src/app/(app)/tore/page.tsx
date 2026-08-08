@@ -97,7 +97,7 @@ export default function DoorsPage() {
               <td className="tabular whitespace-nowrap">
                 <Link
                   href={`/tore/${door.id}`}
-                  className="text-marine-700 font-medium hover:underline"
+                  className="text-verweis font-medium hover:underline"
                 >
                   {door.doorNumber}
                 </Link>

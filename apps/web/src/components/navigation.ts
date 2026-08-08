@@ -19,7 +19,12 @@ export interface NavGroup {
 export const NAVIGATION: NavGroup[] = [
   {
     title: 'Übersicht',
-    items: [{ label: 'Dashboard', href: '/dashboard' }],
+    items: [
+      { label: 'Dashboard', href: '/dashboard' },
+      // Steht bewusst ganz oben: wer draußen arbeitet, kommt über nichts
+      // anderes in die Anwendung.
+      { label: 'Mein Tag', href: '/mein-tag' },
+    ],
   },
   {
     title: 'Vertrieb',

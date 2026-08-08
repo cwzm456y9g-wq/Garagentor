@@ -169,7 +169,7 @@ export function LineItemEditor({
                     variant="ghost"
                     size="sm"
                     onClick={() => remove(index)}
-                    className="text-red-600 hover:bg-red-50"
+                    className="text-fehler hover:bg-fehler-flaeche"
                     aria-label="Position entfernen"
                   >
                     Entfernen
@@ -270,7 +270,7 @@ export function LineItemEditor({
         Position hinzufügen
       </Button>
 
-      <div className="rounded-md border border-slate-200 bg-white p-4">
+      <div className="rounded-md border border-slate-200 bg-flaeche p-4">
         <dl className="ml-auto max-w-sm space-y-1.5 text-sm">
           <div className="flex justify-between gap-6">
             <dt className="text-slate-600">Zwischensumme netto</dt>

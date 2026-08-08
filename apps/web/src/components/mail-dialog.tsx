@@ -119,7 +119,7 @@ export function MailDialog({ art, id, onClose }: MailDialogProps) {
             </div>
           ) : gesendet ? (
             <div className="space-y-4">
-              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <p className="meldung-erfolg">
                 Die Mail ist an {entwurf.an} hinausgegangen. Der Versand steht im Versandprotokoll.
               </p>
               <div className="flex justify-end">
@@ -129,7 +129,7 @@ export function MailDialog({ art, id, onClose }: MailDialogProps) {
           ) : (
             <div className="space-y-4">
               {status && !status.eingerichtet && (
-                <p className="rounded-md border border-bernstein-200 bg-bernstein-50 px-4 py-3 text-sm text-bernstein-900">
+                <p className="meldung-hinweis">
                   Der Postausgang ist noch nicht eingerichtet. Die Zugangsdaten des Mailservers
                   gehören als MAIL_HOST, MAIL_USER, MAIL_PASSWORD und MAIL_FROM in die Umgebung des
                   Servers – nicht in diese Anwendung.
@@ -137,7 +137,7 @@ export function MailDialog({ art, id, onClose }: MailDialogProps) {
               )}
 
               {entwurf.empfaengerFehlt && (
-                <p className="rounded-md border border-bernstein-200 bg-bernstein-50 px-4 py-3 text-sm text-bernstein-900">
+                <p className="meldung-hinweis">
                   Beim Kunden ist keine E-Mail-Adresse hinterlegt. Bitte hier eintragen und im
                   Kundenstamm nachtragen.
                 </p>

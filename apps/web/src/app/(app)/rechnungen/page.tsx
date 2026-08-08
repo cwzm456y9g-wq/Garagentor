@@ -84,7 +84,7 @@ function InvoiceList() {
             <td className="tabular whitespace-nowrap">
               <Link
                 href={`/rechnungen/${invoice.id}`}
-                className="text-marine-700 font-medium hover:underline"
+                className="text-verweis font-medium hover:underline"
               >
                 {invoice.invoiceNumber}
               </Link>
@@ -100,7 +100,7 @@ function InvoiceList() {
             <td className="max-w-xs truncate text-slate-700">{invoice.subject}</td>
             <td className="tabular whitespace-nowrap text-slate-600">{formatDate(invoice.date)}</td>
             <td className="tabular whitespace-nowrap">
-              <span className={overdue ? 'font-medium text-red-700' : 'text-slate-600'}>
+              <span className={overdue ? 'font-medium text-fehler' : 'text-slate-600'}>
                 {formatDate(invoice.dueDate)}
               </span>
             </td>

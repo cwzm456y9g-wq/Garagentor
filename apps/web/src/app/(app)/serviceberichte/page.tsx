@@ -62,7 +62,7 @@ export default function ServiceReportsPage() {
             <td className="tabular whitespace-nowrap">
               <Link
                 href={`/serviceberichte/${report.id}`}
-                className="text-marine-700 font-medium hover:underline"
+                className="text-verweis font-medium hover:underline"
               >
                 {report.reportNumber}
               </Link>

@@ -192,7 +192,7 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
               <>
                 <Link
                   href={`/kunden/${data.customer.id}`}
-                  className="text-marine-700 font-medium hover:underline"
+                  className="text-verweis font-medium hover:underline"
                 >
                   {customerDisplayName(data.customer)}
                 </Link>
@@ -294,7 +294,7 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
                         <td className="tabular">
                           <Link
                             href={`/pruefungen/${inspection.id}`}
-                            className="text-marine-700 font-medium hover:underline"
+                            className="text-verweis font-medium hover:underline"
                           >
                             {inspection.inspectionNumber}
                           </Link>
@@ -333,7 +333,7 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
                       <td className="tabular">
                         <Link
                           href={`/serviceberichte/${report.id}`}
-                          className="text-marine-700 font-medium hover:underline"
+                          className="text-verweis font-medium hover:underline"
                         >
                           {report.reportNumber}
                         </Link>

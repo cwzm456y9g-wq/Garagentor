@@ -151,7 +151,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
               <>
                 <Link
                   href={`/kunden/${data.customer.id}`}
-                  className="text-marine-700 font-medium hover:underline"
+                  className="text-verweis font-medium hover:underline"
                 >
                   {customerDisplayName(data.customer)}
                 </Link>
@@ -206,7 +206,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
                         <td>
                           <Link
                             href={`/auftraege/${order.id}`}
-                            className="text-marine-700 tabular font-medium hover:underline"
+                            className="text-verweis tabular font-medium hover:underline"
                           >
                             {order.orderNumber}
                           </Link>

@@ -87,7 +87,7 @@ export function GlobalSearch() {
           if (event.key === 'Enter' && result?.hits.length) go(result.hits[0].href);
         }}
         placeholder="Kunde, Tor, Beleg oder Artikel suchen …"
-        className="w-full rounded-md border border-slate-300 bg-white py-2 pl-3 pr-9 text-sm
+        className="w-full rounded-md border border-slate-300 bg-flaeche py-2 pl-3 pr-9 text-sm
           placeholder:text-slate-400"
         autoComplete="off"
       />
@@ -96,7 +96,7 @@ export function GlobalSearch() {
       {open && result && (
         <div
           className="absolute z-30 mt-1 max-h-[70vh] w-full overflow-y-auto rounded-md border
-            border-slate-200 bg-white py-1 shadow-lg"
+            border-slate-200 bg-flaeche py-1 shadow-lg"
         >
           {result.hits.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-500">Keine Treffer für „{result.query}“.</p>
@@ -106,7 +106,7 @@ export function GlobalSearch() {
                 key={`${hit.type}-${hit.id}`}
                 type="button"
                 onClick={() => go(hit.href)}
-                className="hover:bg-marine-50 flex w-full items-start gap-3 px-4 py-2 text-left"
+                className="hover:bg-flaeche-aktiv flex w-full items-start gap-3 px-4 py-2 text-left"
               >
                 <span
                   className="mt-0.5 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px]

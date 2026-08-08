@@ -208,7 +208,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
           {data.door && (
             <Link
               href={`/tore/${data.door.id}`}
-              className="text-marine-700 mt-1 block font-medium hover:underline"
+              className="text-verweis mt-1 block font-medium hover:underline"
             >
               {data.door.doorNumber}
             </Link>
@@ -345,7 +345,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
                     </div>
 
                     {exceeded && (
-                      <p className="mt-2 text-xs font-medium text-red-700">
+                      <p className="mt-2 text-xs font-medium text-fehler">
                         Der Messwert überschreitet den Grenzwert – der Prüfpunkt wird beim Speichern
                         als Mangel gewertet.
                       </p>

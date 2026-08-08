@@ -55,7 +55,7 @@ export default function InventoryPage() {
                 </span>
                 <span className="tabular whitespace-nowrap text-slate-600">
                   Bestand {formatNumber(row.stock, 0)} / Melde {formatNumber(row.minStock, 0)} ·
-                  <span className="ml-1 font-medium text-bernstein-700">
+                  <span className="ml-1 font-medium text-hinweis">
                     fehlt {formatNumber(row.fehlmenge, 0)}
                   </span>
                 </span>
@@ -111,7 +111,7 @@ export default function InventoryPage() {
                 <>
                   <span
                     className={
-                      article.belowMinStock ? 'font-medium text-bernstein-700' : 'text-slate-900'
+                      article.belowMinStock ? 'font-medium text-hinweis' : 'text-slate-900'
                     }
                   >
                     {formatNumber(article.stock, 0)} {article.unit}

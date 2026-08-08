@@ -117,7 +117,7 @@ export default function DefectsPage() {
                 {defect.door && (
                   <Link
                     href={`/tore/${defect.door.id}`}
-                    className="text-marine-700 tabular hover:underline"
+                    className="text-verweis tabular hover:underline"
                   >
                     {defect.door.doorNumber}
                   </Link>
@@ -131,7 +131,7 @@ export default function DefectsPage() {
                 <Badge tone={severityState.tone}>{severityState.label}</Badge>
               </td>
               <td className="tabular whitespace-nowrap">
-                <span className={overdue ? 'font-medium text-red-700' : 'text-slate-600'}>
+                <span className={overdue ? 'font-medium text-fehler' : 'text-slate-600'}>
                   {formatDate(defect.dueDate)}
                 </span>
               </td>

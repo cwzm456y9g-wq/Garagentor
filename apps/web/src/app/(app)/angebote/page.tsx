@@ -69,7 +69,7 @@ export default function QuotesPage() {
               <td className="tabular whitespace-nowrap">
                 <Link
                   href={`/angebote/${quote.id}`}
-                  className="text-marine-700 font-medium hover:underline"
+                  className="text-verweis font-medium hover:underline"
                 >
                   {quote.quoteNumber}
                 </Link>
@@ -80,9 +80,7 @@ export default function QuotesPage() {
               <td className="max-w-xs truncate text-slate-700">{quote.subject}</td>
               <td className="tabular whitespace-nowrap text-slate-600">{formatDate(quote.date)}</td>
               <td className="tabular whitespace-nowrap">
-                <span
-                  className={expiringSoon ? 'text-bernstein-700 font-medium' : 'text-slate-600'}
-                >
+                <span className={expiringSoon ? 'text-hinweis font-medium' : 'text-slate-600'}>
                   {formatDate(quote.validUntil)}
                 </span>
               </td>

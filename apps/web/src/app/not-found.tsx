@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="text-center">
-        <p className="text-marine-600 text-sm font-semibold">Fehler 404</p>
+        <p className="text-verweis text-sm font-semibold">Fehler 404</p>
         <h1 className="mt-2 text-2xl font-bold text-slate-900">Seite nicht gefunden</h1>
         <p className="mt-2 text-sm text-slate-600">
           Die aufgerufene Seite existiert nicht oder wurde verschoben.

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { DARSTELLUNG_SKRIPT } from '@/components/darstellung';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,6 +23,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="de">
+      <head>
+        {/* Setzt die gewählte Darstellung, bevor der erste Pixel steht – sonst
+            blitzt bei dunkler Wahl kurz die helle Oberfläche auf. */}
+        <script dangerouslySetInnerHTML={{ __html: DARSTELLUNG_SKRIPT }} />
+      </head>
       <body className="min-h-screen">{children}</body>
     </html>
   );

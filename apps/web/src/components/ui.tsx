@@ -19,11 +19,14 @@ export function cx(...values: Array<string | false | null | undefined>): string 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-marine-700 text-white hover:bg-marine-800 disabled:bg-marine-300',
+  // Abgeschaltet wird der Knopf grau statt blasser Farbe: Weiß auf marine-300
+  // kam auf einen Kontrast von 1,9 und war kaum zu lesen.
+  primary:
+    'bg-marine-700 text-white hover:bg-marine-800 disabled:bg-slate-200 disabled:text-slate-500',
   secondary:
-    'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 disabled:text-slate-400',
+    'bg-flaeche text-slate-700 border border-slate-300 hover:bg-slate-50 disabled:text-slate-400',
   ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
+  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-slate-200 disabled:text-slate-500',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -155,10 +158,10 @@ export type BadgeTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 const BADGE_TONES: Record<BadgeTone, string> = {
   neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
-  info: 'bg-marine-50 text-marine-700 ring-marine-200',
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  warning: 'bg-bernstein-50 text-bernstein-800 ring-bernstein-200',
-  danger: 'bg-red-50 text-red-700 ring-red-200',
+  info: 'bg-info-flaeche text-info ring-info-rand',
+  success: 'bg-erfolg-flaeche text-erfolg ring-erfolg-rand',
+  warning: 'bg-hinweis-flaeche text-hinweis ring-hinweis-rand',
+  danger: 'bg-fehler-flaeche text-fehler ring-fehler-rand',
 };
 
 export function Badge({
@@ -205,13 +208,13 @@ export function EmptyState({
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3">
-      <p className="text-sm text-red-800">{message}</p>
+    <div className="rounded-md border border-fehler-rand bg-fehler-flaeche px-4 py-3">
+      <p className="text-sm text-fehler">{message}</p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 text-sm font-medium text-red-700 underline"
+          className="mt-2 text-sm font-medium text-fehler underline"
         >
           Erneut versuchen
         </button>
@@ -223,7 +226,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 export function LoadingState({ label = 'Wird geladen …' }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-3 px-6 py-14 text-sm text-slate-500">
-      <Spinner className="text-marine-600 h-5 w-5" />
+      <Spinner className="text-verweis h-5 w-5" />
       {label}
     </div>
   );
@@ -246,7 +249,7 @@ export function Field({ label, htmlFor, hint, error, required, children, classNa
     <div className={className}>
       <label className="label" htmlFor={htmlFor}>
         {label}
-        {required && <span className="ml-0.5 text-red-600">*</span>}
+        {required && <span className="ml-0.5 text-fehler">*</span>}
       </label>
       {children}
       {hint && !error && <p className="hint">{hint}</p>}
@@ -357,9 +360,9 @@ export function StatCard({
   const accents: Record<BadgeTone, string> = {
     neutral: 'border-slate-200',
     info: 'border-marine-300',
-    success: 'border-emerald-300',
-    warning: 'border-bernstein-300',
-    danger: 'border-red-300',
+    success: 'border-erfolg-rand',
+    warning: 'border-hinweis-rand',
+    danger: 'border-fehler-rand',
   };
 
   const content = (

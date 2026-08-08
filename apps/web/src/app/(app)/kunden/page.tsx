@@ -74,7 +74,7 @@ export default function CustomersPage() {
             <td className="tabular whitespace-nowrap">
               <Link
                 href={`/kunden/${customer.id}`}
-                className="text-marine-700 font-medium hover:underline"
+                className="text-verweis font-medium hover:underline"
               >
                 {customer.customerNumber}
               </Link>

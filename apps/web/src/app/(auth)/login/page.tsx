@@ -54,7 +54,7 @@ export default function LoginPage() {
           <span className="text-lg font-semibold tracking-tight text-white">Garagentor</span>
         </div>
 
-        <div className="rounded-lg bg-white p-6 shadow-xl">
+        <div className="rounded-lg bg-flaeche p-6 shadow-xl">
           <h1 className="text-lg font-semibold text-slate-900">Anmeldung</h1>
           <p className="mt-1 text-sm text-slate-600">
             Bitte melden Sie sich mit Ihren Zugangsdaten an.
@@ -87,7 +87,7 @@ export default function LoginPage() {
             {error && (
               <div
                 role="alert"
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+                className="rounded-md border border-fehler-rand bg-fehler-flaeche px-3 py-2 text-sm text-fehler"
               >
                 {error}
               </div>

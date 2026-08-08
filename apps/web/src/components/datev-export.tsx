@@ -99,18 +99,18 @@ export function DatevExport({ jahr }: { jahr: number }) {
           </div>
 
           {einstellungenFehlen && (
-            <p className="rounded-md border border-bernstein-200 bg-bernstein-50 px-4 py-3 text-sm text-bernstein-900">
+            <p className="meldung-hinweis">
               Berater- und Mandantennummer stehen noch auf 0. Beide kommen vom Steuerberater und
               gehören in die Einstellungen – ohne sie ordnet DATEV den Stapel keinem Mandanten zu.
             </p>
           )}
 
           {vorschau.beanstandungen.length > 0 && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3">
-              <p className="text-sm font-medium text-red-800">
+            <div className="rounded-md border border-fehler-rand bg-fehler-flaeche px-4 py-3">
+              <p className="text-sm font-medium text-fehler">
                 {vorschau.beanstandungen.length} Beleg(e) sind nicht im Stapel enthalten:
               </p>
-              <ul className="mt-2 space-y-1 text-sm text-red-700">
+              <ul className="mt-2 space-y-1 text-sm text-fehler">
                 {vorschau.beanstandungen.map((hinweis, index) => (
                   <li key={`${hinweis.beleg}-${index}`}>
                     <span className="tabular font-medium">{hinweis.beleg}</span> – {hinweis.hinweis}

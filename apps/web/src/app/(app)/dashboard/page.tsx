@@ -46,10 +46,7 @@ export default function DashboardPage() {
         <Card
           title="Anstehende Prüfungen nach ASR A1.7"
           actions={
-            <Link
-              href="/pruefungen"
-              className="text-marine-700 text-sm font-medium hover:underline"
-            >
+            <Link href="/pruefungen" className="text-verweis text-sm font-medium hover:underline">
               Alle Prüfungen
             </Link>
           }
@@ -81,7 +78,7 @@ export default function DashboardPage() {
                     <td>
                       <Link
                         href={`/tore/${row.doorId}`}
-                        className="text-marine-700 font-medium hover:underline"
+                        className="text-verweis font-medium hover:underline"
                       >
                         {row.doorNumber}
                       </Link>
@@ -112,7 +109,7 @@ export default function DashboardPage() {
             actions={
               <Link
                 href="/rechnungen?openOnly=true"
-                className="text-marine-700 text-sm font-medium hover:underline"
+                className="text-verweis text-sm font-medium hover:underline"
               >
                 Alle Rechnungen
               </Link>
@@ -146,7 +143,7 @@ export default function DashboardPage() {
                       <td>
                         <Link
                           href={`/rechnungen/${row.invoiceId}`}
-                          className="text-marine-700 font-medium hover:underline"
+                          className="text-verweis font-medium hover:underline"
                         >
                           {row.invoiceNumber}
                         </Link>

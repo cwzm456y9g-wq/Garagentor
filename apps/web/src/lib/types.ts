@@ -899,3 +899,41 @@ export interface DatevSettings {
   festschreibung?: boolean;
   erloeskonten?: Record<string, number>;
 }
+
+/** Tagesansicht für den Einsatz vor Ort. */
+export interface MeinTag {
+  datum: string;
+  mitarbeiter: EmployeeRef | null;
+  termine: Array<
+    Appointment & {
+      site?: { name: string; street: string; zip: string; city: string } | null;
+      order?: { id: string; orderNumber: string; subject: string } | null;
+    }
+  >;
+  offeneProtokolle: Array<{
+    id: string;
+    inspectionNumber: string;
+    date: string;
+    offenePunkte: number;
+    _count: { checks: number; defects: number };
+    door?: {
+      id: string;
+      doorNumber: string;
+      location: string;
+      customer: CustomerRef;
+    } | null;
+  }>;
+  offeneBerichte: Array<{
+    id: string;
+    reportNumber: string;
+    date: string;
+    door?: { id: string; doorNumber: string; location: string } | null;
+    order?: { id: string; orderNumber: string; subject: string } | null;
+  }>;
+  stundenHeute: number;
+  dringendeMaengel: Array<{
+    id: string;
+    title: string;
+    door?: { id: string; doorNumber: string; location: string; customer: CustomerRef } | null;
+  }>;
+}

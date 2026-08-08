@@ -68,7 +68,7 @@ function PhotoThumb({
         <button
           type="button"
           onClick={() => onDelete(eintrag.id)}
-          className="absolute right-0.5 top-0.5 rounded bg-white/90 px-1 text-xs text-slate-600 opacity-0 transition-opacity hover:text-red-700 group-hover:opacity-100 focus:opacity-100"
+          className="absolute right-0.5 top-0.5 rounded bg-flaeche/90 px-1 text-xs text-slate-600 opacity-0 transition-opacity hover:text-fehler group-hover:opacity-100 focus:opacity-100"
           aria-label={`Foto ${eintrag.originalName} entfernen`}
         >
           ✕
@@ -161,7 +161,7 @@ export function PhotoGallery({
         </>
       )}
 
-      {fehler && <span className="text-xs text-red-700">{fehler}</span>}
+      {fehler && <span className="text-xs text-fehler">{fehler}</span>}
     </div>
   );
 }

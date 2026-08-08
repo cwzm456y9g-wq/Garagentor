@@ -126,9 +126,7 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
           <Card title="Ausgeführte Arbeiten">
             <p className="whitespace-pre-line text-sm text-slate-700">{data.workPerformed}</p>
             {data.followUpNote && (
-              <p className="mt-4 rounded-md border border-bernstein-200 bg-bernstein-50 px-3 py-2 text-sm text-bernstein-900">
-                {data.followUpNote}
-              </p>
+              <p className="mt-4 meldung-hinweis px-3 py-2">{data.followUpNote}</p>
             )}
           </Card>
 
@@ -265,7 +263,7 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
             <Card title="Toranlage">
               <Link
                 href={`/tore/${data.door.id}`}
-                className="text-marine-700 tabular font-medium hover:underline"
+                className="text-verweis tabular font-medium hover:underline"
               >
                 {data.door.doorNumber}
               </Link>
@@ -282,7 +280,7 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
             <Card title="Auftrag">
               <Link
                 href={`/auftraege/${data.order.id}`}
-                className="text-marine-700 tabular font-medium hover:underline"
+                className="text-verweis tabular font-medium hover:underline"
               >
                 {data.order.orderNumber}
               </Link>
