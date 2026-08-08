@@ -22,7 +22,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="de">
+    // data-scroll-behavior: Next.js schaltet das weiche Scrollen beim
+    // Seitenwechsel nur noch ab, wenn die Seite es ausdrücklich anmeldet.
+    //
+    // suppressHydrationWarning: das Skript unten setzt data-theme, bevor React
+    // übernimmt. Der Server kann die Wahl nicht kennen – sie liegt im Browser –,
+    // also weichen die Attribute zwangsläufig voneinander ab. React behält den
+    // Wert aus dem Browser; unterdrückt wird nur die Warnung, und nur für dieses
+    // eine Element.
+    <html lang="de" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Setzt die gewählte Darstellung, bevor der erste Pixel steht – sonst
             blitzt bei dunkler Wahl kurz die helle Oberfläche auf. */}
