@@ -188,9 +188,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
  * Wie `request`, gibt aber die Antwort selbst zurück – für Dateien, die nicht
  * als JSON ausgewertet werden. Token und Erneuerung laufen gleich.
  */
-export async function requestRaw(path: string): Promise<Response> {
+export async function requestRaw(path: string, query?: RequestOptions['query']): Promise<Response> {
   const send = (token: string | null) =>
-    fetch(buildUrl(path), {
+    fetch(buildUrl(path, query), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
@@ -249,6 +249,27 @@ export const api = {
       verweis.click();
     }
     // Der Browser braucht den Verweis noch einen Moment.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
+
+  /**
+   * Lädt eine Datei herunter, statt sie anzuzeigen. Für Formate, die im
+   * Browser nichts zu suchen haben – etwa den Buchungsstapel für die Kanzlei.
+   */
+  downloadFile: async (path: string, query?: RequestOptions['query']): Promise<void> => {
+    const antwort = await requestRaw(path, query);
+    const blob = await antwort.blob();
+    const url = URL.createObjectURL(blob);
+
+    // Den Dateinamen gibt der Server vor; er trägt den Zeitraum.
+    const kopf = antwort.headers.get('Content-Disposition') ?? '';
+    const treffer = /filename="?([^";]+)"?/i.exec(kopf);
+
+    const verweis = document.createElement('a');
+    verweis.href = url;
+    verweis.download = treffer?.[1] ?? path.split('/').pop() ?? 'export';
+    verweis.click();
+
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 };

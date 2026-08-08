@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { use, useState } from 'react';
 import { PhotoGallery } from '@/components/photo-gallery';
 import { SignaturePad } from '@/components/signature-pad';
+import { MailButton } from '@/components/mail-dialog';
 import {
   Badge,
   Button,
@@ -77,9 +78,12 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
       <PageHeader
         title={`Servicebericht ${data.reportNumber}`}
         actions={
-          <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
-            Als PDF
-          </Button>
+          <>
+            <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
+              Als PDF
+            </Button>
+            <MailButton art="SERVICEBERICHT" id={id} onSent={reload} />
+          </>
         }
         subtitle={
           <span className="flex flex-wrap items-center gap-2">

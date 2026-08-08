@@ -12,6 +12,8 @@ import { HealthController } from './health/health.controller';
 import { HrModule } from './hr/hr.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { ExportsModule } from './exports/exports.module';
+import { MailModule } from './mail/mail.module';
 import { PdfModule } from './pdf/pdf.module';
 import { OrdersModule } from './orders/orders.module';
 import { PlanningModule } from './planning/planning.module';
@@ -40,6 +42,8 @@ import { SettingsModule } from './settings/settings.module';
     OrdersModule,
     InvoicesModule,
     PdfModule,
+    MailModule,
+    ExportsModule,
     DoorsModule,
     InventoryModule,
     PlanningModule,

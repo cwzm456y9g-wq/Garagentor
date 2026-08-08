@@ -76,6 +76,15 @@ services:
       CORS_ORIGIN: https://${DOMAIN:?DOMAIN fehlt}
       UPLOAD_DIR: /app/uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      # Postausgang. Fehlt MAIL_HOST, läuft die Anwendung ohne Mailversand.
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      MAIL_BCC: ${MAIL_BCC:-}
     volumes:
       - api-uploads:/app/uploads
     networks: [intern]

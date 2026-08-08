@@ -824,3 +824,78 @@ export interface ArticleStock {
   fehlmenge: number;
   wert: number;
 }
+
+/** Eintrag im Versandprotokoll. */
+export interface MailLogEntry {
+  id: string;
+  entityType: string | null;
+  entityId: string | null;
+  reference: string | null;
+  recipient: string;
+  cc: string | null;
+  subject: string;
+  body: string;
+  attachments: string[];
+  status: 'GESENDET' | 'FEHLGESCHLAGEN';
+  error: string | null;
+  createdAt: string;
+  sentBy?: EmployeeRef | null;
+}
+
+/** Zustand des Postausgangs; die Zugangsdaten bleiben auf dem Server. */
+export interface MailStatusInfo {
+  eingerichtet: boolean;
+  host: string | null;
+  port: number;
+  secure: boolean;
+  absender: string | null;
+  antwortAn: string | null;
+  kopieAn: string | null;
+}
+
+/** Vorschau des DATEV-Buchungsstapels. */
+export interface DatevVorschau {
+  von: string;
+  bis: string;
+  anzahl: number;
+  summe: number;
+  beanstandungen: Array<{ beleg: string; hinweis: string }>;
+  einstellungen: {
+    kontenrahmen: string;
+    beraternummer: number;
+    mandantennummer: number;
+    sachkontenlaenge: number;
+    debitorBasis: number;
+    festschreibung: boolean;
+    erloeskonten: Record<string, number>;
+  };
+  buchungen: Array<{
+    umsatz: number;
+    sollHaben: 'S' | 'H';
+    konto: number;
+    gegenkonto: number;
+    belegdatum: string;
+    belegfeld1: string;
+    buchungstext: string;
+    steuersatz: number;
+  }>;
+}
+
+/** Vorgaben für den Postausgang; Zugangsdaten stehen in der Umgebung. */
+export interface MailSettings {
+  absender?: string;
+  antwortAn?: string;
+  signatur?: string;
+  vorlagen?: Partial<Record<string, { betreff?: string; text?: string }>>;
+}
+
+/** Vorgaben für den DATEV-Export. */
+export interface DatevSettings {
+  kontenrahmen?: 'SKR03' | 'SKR04';
+  beraternummer?: number;
+  mandantennummer?: number;
+  sachkontenlaenge?: number;
+  debitorBasis?: number;
+  festschreibung?: boolean;
+  erloeskonten?: Record<string, number>;
+}

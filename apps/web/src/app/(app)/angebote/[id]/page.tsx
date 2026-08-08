@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useState } from 'react';
 import { DocumentItems } from '@/components/document-items';
+import { MailButton } from '@/components/mail-dialog';
 import { Badge, Button, Card, ErrorState, LoadingState, PageHeader, Table } from '@/components/ui';
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
@@ -54,6 +55,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
             <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
               Als PDF
             </Button>
+            <MailButton art="ANGEBOT" id={id} onSent={reload} />
             {data.status === 'ENTWURF' && (
               <Button loading={send.loading} onClick={() => void run(() => send.run())}>
                 Versenden

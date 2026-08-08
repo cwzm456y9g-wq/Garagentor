@@ -9,6 +9,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { MailButton } from '@/components/mail-dialog';
 import {
   Badge,
   Button,
@@ -223,6 +224,7 @@ export default function DunningPage() {
                         >
                           Als PDF
                         </Button>
+                        <MailButton art="MAHNUNG" id={dunning.id} onSent={list.reload} />
                         {dunning.status === 'ENTWURF' && (
                           <Button
                             size="sm"

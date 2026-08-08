@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { use, useState, type FormEvent } from 'react';
 import { DocumentItems } from '@/components/document-items';
+import { MailButton } from '@/components/mail-dialog';
 import {
   Badge,
   Button,
@@ -92,6 +93,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
               Als PDF
             </Button>
+            <MailButton art="RECHNUNG" id={id} onSent={reload} />
             {mayBook && (
               <>
                 {data.status === 'ENTWURF' && (

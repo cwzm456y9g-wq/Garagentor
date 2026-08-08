@@ -14,15 +14,26 @@ import {
   Table,
   Textarea,
 } from '@/components/ui';
-import { baseRateOutdated, DEFAULT_BASE_RATE, interestRate } from '@garagentor/shared';
+import {
+  baseRateOutdated,
+  CHART_OF_ACCOUNTS,
+  DEFAULT_BASE_RATE,
+  interestRate,
+  MAIL_DOCUMENT_TYPES,
+  MAIL_PLACEHOLDERS,
+  MAIL_TEMPLATE_DEFAULTS,
+  type MailDocumentType,
+} from '@garagentor/shared';
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
 import type {
   CompanySettings,
+  DatevSettings,
   DocumentSettings,
   DunningLevelSetting,
   DunningSettings,
   InspectionSettings,
+  MailSettings,
   NumberRange,
   Setting,
   SettingPreset,
@@ -43,6 +54,14 @@ const ENTITY_LABELS: Record<string, string> = {
   DOOR: 'Toranlagen',
   EMPLOYEE: 'Mitarbeiter',
   MAINTENANCE_CONTRACT: 'Wartungsverträge',
+};
+
+const MAIL_LABELS: Record<MailDocumentType, string> = {
+  ANGEBOT: 'Angebot',
+  RECHNUNG: 'Rechnung',
+  MAHNUNG: 'Mahnung',
+  SERVICEBERICHT: 'Servicebericht',
+  PRUEFPROTOKOLL: 'Prüfprotokoll',
 };
 
 const DUNNING_LABELS: Record<string, string> = {
@@ -91,6 +110,11 @@ export default function SettingsPage() {
             geladen={wertVon<InspectionSettings>('pruefung') ?? {}}
             neuLaden={settings.reload}
           />
+          <PostausgangKarte
+            geladen={wertVon<MailSettings>('mail') ?? {}}
+            neuLaden={settings.reload}
+          />
+          <DatevKarte geladen={wertVon<DatevSettings>('datev') ?? {}} neuLaden={settings.reload} />
           <NummernkreiseKarte ranges={ranges} />
         </div>
       )}
@@ -797,6 +821,304 @@ function PruefungKarte({
       </div>
 
       <VorlagenLeiste settingKey="pruefung" bezeichnung="Prüfvorgaben" neuLaden={neuLaden} />
+    </Card>
+  );
+}
+
+/* Postausgang ---------------------------------------------------------- */
+
+function PostausgangKarte({ geladen, neuLaden }: { geladen: MailSettings; neuLaden: () => void }) {
+  const [entwurf, setEntwurf] = useState<MailSettings | null>(null);
+  const [offen, setOffen] = useState<MailDocumentType>('RECHNUNG');
+  const wert = entwurf ?? geladen;
+  const geaendert = entwurf !== null && JSON.stringify(entwurf) !== JSON.stringify(geladen);
+
+  const speichern = useAction((body: MailSettings) =>
+    api.put('/settings/mail', { value: body, category: 'kommunikation' }),
+  );
+
+  const vorlage = wert.vorlagen?.[offen] ?? {};
+
+  function setzeVorlage(patch: { betreff?: string; text?: string }) {
+    setEntwurf({
+      ...wert,
+      vorlagen: { ...wert.vorlagen, [offen]: { ...vorlage, ...patch } },
+    });
+  }
+
+  return (
+    <Card
+      title="Postausgang"
+      bodyClassName=""
+      actions={
+        <Button
+          size="sm"
+          loading={speichern.loading}
+          disabled={!geaendert}
+          onClick={async () => {
+            if (await speichern.run(wert)) {
+              setEntwurf(null);
+              neuLaden();
+            }
+          }}
+        >
+          {geaendert ? 'Speichern' : 'Gespeichert'}
+        </Button>
+      }
+    >
+      <div className="card-body space-y-4">
+        {speichern.error && <ErrorState message={speichern.error} />}
+
+        <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          Die Zugangsdaten des Mailservers stehen bewusst nicht hier, sondern als MAIL_HOST,
+          MAIL_PORT, MAIL_USER, MAIL_PASSWORD und MAIL_FROM in der Umgebung des Servers. So landen
+          sie weder in der Datenbank noch in einer Sicherung, die weitergereicht wird.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Absendername" htmlFor="mail-absender" hint="Steht vor der Adresse.">
+            <Input
+              id="mail-absender"
+              value={wert.absender ?? ''}
+              onChange={(event) => setEntwurf({ ...wert, absender: event.target.value })}
+            />
+          </Field>
+          <Field label="Antwort an" htmlFor="mail-antwort" hint="Abweichende Antwortadresse.">
+            <Input
+              id="mail-antwort"
+              type="email"
+              value={wert.antwortAn ?? ''}
+              onChange={(event) => setEntwurf({ ...wert, antwortAn: event.target.value })}
+            />
+          </Field>
+        </div>
+
+        <Field
+          label="Signatur"
+          htmlFor="mail-signatur"
+          hint="Ohne Angabe wird sie aus den Firmendaten gebildet."
+        >
+          <Textarea
+            id="mail-signatur"
+            rows={4}
+            value={wert.signatur ?? ''}
+            onChange={(event) => setEntwurf({ ...wert, signatur: event.target.value })}
+          />
+        </Field>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700">Anschreiben je Belegart</p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {MAIL_DOCUMENT_TYPES.map((art) => (
+              <button
+                key={art}
+                type="button"
+                onClick={() => setOffen(art)}
+                className={
+                  offen === art
+                    ? 'bg-marine-700 rounded-md px-3 py-1.5 text-xs font-medium text-white'
+                    : 'rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50'
+                }
+              >
+                {MAIL_LABELS[art]}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            <Field label="Betreff" htmlFor="mail-vorlage-betreff">
+              <Input
+                id="mail-vorlage-betreff"
+                value={vorlage.betreff ?? ''}
+                placeholder={MAIL_TEMPLATE_DEFAULTS[offen].betreff}
+                onChange={(event) => setzeVorlage({ betreff: event.target.value })}
+              />
+            </Field>
+            <Field
+              label="Text"
+              htmlFor="mail-vorlage-text"
+              hint="Leer lassen, um die Vorgabe zu verwenden. Der Gruß und die Signatur kommen automatisch dazu."
+            >
+              <Textarea
+                id="mail-vorlage-text"
+                rows={8}
+                value={vorlage.text ?? ''}
+                placeholder={MAIL_TEMPLATE_DEFAULTS[offen].text}
+                onChange={(event) => setzeVorlage({ text: event.target.value })}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+            {MAIL_PLACEHOLDERS.map((platzhalter) => (
+              <span key={platzhalter.name}>
+                <code className="text-slate-700">{platzhalter.name}</code>{' '}
+                {platzhalter.beschreibung}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <VorlagenLeiste settingKey="mail" bezeichnung="Postausgang" neuLaden={neuLaden} />
+    </Card>
+  );
+}
+
+/* Buchhaltung ---------------------------------------------------------- */
+
+function DatevKarte({ geladen, neuLaden }: { geladen: DatevSettings; neuLaden: () => void }) {
+  const [entwurf, setEntwurf] = useState<DatevSettings | null>(null);
+  const wert = entwurf ?? geladen;
+  const geaendert = entwurf !== null && JSON.stringify(entwurf) !== JSON.stringify(geladen);
+
+  const speichern = useAction((body: DatevSettings) =>
+    api.put('/settings/datev', { value: body, category: 'buchhaltung' }),
+  );
+
+  const rahmen = CHART_OF_ACCOUNTS[wert.kontenrahmen ?? 'SKR03'] ?? CHART_OF_ACCOUNTS.SKR03;
+
+  function setzeKonto(satz: string, konto: number) {
+    setEntwurf({ ...wert, erloeskonten: { ...wert.erloeskonten, [satz]: konto } });
+  }
+
+  return (
+    <Card
+      title="DATEV-Export"
+      bodyClassName=""
+      actions={
+        <Button
+          size="sm"
+          loading={speichern.loading}
+          disabled={!geaendert}
+          onClick={async () => {
+            if (await speichern.run(wert)) {
+              setEntwurf(null);
+              neuLaden();
+            }
+          }}
+        >
+          {geaendert ? 'Speichern' : 'Gespeichert'}
+        </Button>
+      }
+    >
+      <div className="card-body space-y-4">
+        {speichern.error && <ErrorState message={speichern.error} />}
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Beraternummer" htmlFor="datev-berater" hint="Vom Steuerberater.">
+            <Input
+              id="datev-berater"
+              type="number"
+              min={0}
+              value={wert.beraternummer ?? 0}
+              onChange={(event) =>
+                setEntwurf({ ...wert, beraternummer: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field label="Mandantennummer" htmlFor="datev-mandant" hint="Vom Steuerberater.">
+            <Input
+              id="datev-mandant"
+              type="number"
+              min={0}
+              value={wert.mandantennummer ?? 0}
+              onChange={(event) =>
+                setEntwurf({ ...wert, mandantennummer: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field label="Kontenrahmen" htmlFor="datev-rahmen">
+            <Select
+              id="datev-rahmen"
+              value={wert.kontenrahmen ?? 'SKR03'}
+              onChange={(event) =>
+                setEntwurf({
+                  ...wert,
+                  kontenrahmen: event.target.value as DatevSettings['kontenrahmen'],
+                  // Die Erlöskonten des alten Rahmens gäbe es im neuen nicht.
+                  erloeskonten: undefined,
+                })
+              }
+            >
+              {Object.keys(CHART_OF_ACCOUNTS).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Sachkontenlänge" htmlFor="datev-laenge" hint="Muss zur Kanzlei passen.">
+            <Input
+              id="datev-laenge"
+              type="number"
+              min={4}
+              max={8}
+              value={wert.sachkontenlaenge ?? 4}
+              onChange={(event) =>
+                setEntwurf({ ...wert, sachkontenlaenge: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field
+            label="Debitoren ab"
+            htmlFor="datev-debitor"
+            hint="Basis für Kunden ohne eigenes Konto."
+          >
+            <Input
+              id="datev-debitor"
+              type="number"
+              min={1}
+              value={wert.debitorBasis ?? rahmen.debitorBasis}
+              onChange={(event) =>
+                setEntwurf({ ...wert, debitorBasis: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field
+            label="Festschreiben"
+            htmlFor="datev-festschreibung"
+            hint="Festgeschriebene Buchungen sind in DATEV nicht mehr änderbar."
+          >
+            <Select
+              id="datev-festschreibung"
+              value={wert.festschreibung ? 'ja' : 'nein'}
+              onChange={(event) =>
+                setEntwurf({ ...wert, festschreibung: event.target.value === 'ja' })
+              }
+            >
+              <option value="nein">nein</option>
+              <option value="ja">ja</option>
+            </Select>
+          </Field>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700">Erlöskonten je Steuersatz</p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {Object.entries(rahmen.erloese).map(([satz, vorgabe]) => (
+              <Field key={satz} label={`${satz} % Umsatzsteuer`} htmlFor={`datev-konto-${satz}`}>
+                <Input
+                  id={`datev-konto-${satz}`}
+                  type="number"
+                  min={1}
+                  value={wert.erloeskonten?.[satz] ?? vorgabe}
+                  onChange={(event) => setzeKonto(satz, Number(event.target.value))}
+                />
+              </Field>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Es sind Automatikkonten: der Steuerschlüssel ergibt sich in DATEV aus dem Konto, deshalb
+            bleibt das Feld BU-Schlüssel im Export leer.
+          </p>
+        </div>
+      </div>
+
+      <VorlagenLeiste settingKey="datev" bezeichnung="DATEV-Vorgaben" neuLaden={neuLaden} />
     </Card>
   );
 }

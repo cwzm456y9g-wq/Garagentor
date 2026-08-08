@@ -60,6 +60,11 @@ export const NAVIGATION: NavGroup[] = [
         href: '/mahnwesen',
         roles: ['GESCHAEFTSFUEHRUNG', 'BUERO', 'BUCHHALTUNG'],
       },
+      {
+        label: 'Postausgang',
+        href: '/postausgang',
+        roles: ['GESCHAEFTSFUEHRUNG', 'BUERO', 'BUCHHALTUNG'],
+      },
     ],
   },
   {

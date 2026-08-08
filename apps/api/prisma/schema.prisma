@@ -48,6 +48,7 @@ model User {
   stockMovements    StockMovement[]
   uploadedDocuments Document[]
   auditLogs         AuditLog[]
+  sentMails         MailLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -242,6 +243,9 @@ model Customer {
   /// Umsatzsteuer-Identifikationsnummer.
   vatId            String?
   taxNumber        String?
+  /// Debitorenkonto in der Finanzbuchhaltung. Ohne Angabe leitet der
+  /// DATEV-Export die Nummer aus der Kundennummer ab.
+  debtorAccount    Int?
   paymentTermsDays Int          @default(14)
   /// Kundenrabatt in Prozent auf alle Positionen.
   discountPercent  Decimal      @default(0) @db.Decimal(5, 2)
@@ -1440,4 +1444,38 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+enum MailStatus {
+  GESENDET
+  FEHLGESCHLAGEN
+}
+
+/// Versandprotokoll. Belegt, welcher Beleg wann an wen hinausgegangen ist –
+/// ohne das lässt sich im Streitfall nicht zeigen, dass die Rechnung den
+/// Kunden erreicht hat.
+model MailLog {
+  id         String      @id @default(cuid())
+  entityType EntityType?
+  entityId   String?
+  /// Belegnummer im Klartext, damit das Protokoll auch ohne den Beleg lesbar bleibt.
+  reference  String?
+  recipient  String
+  cc         String?
+  subject    String
+  body       String
+  /// Dateinamen der Anhänge.
+  attachments String[]
+  status     MailStatus
+  /// Meldung des Mailservers, wenn der Versand scheiterte.
+  error      String?
+  messageId  String?
+  sentBy     User?       @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  sentById   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("mail_logs")
 }

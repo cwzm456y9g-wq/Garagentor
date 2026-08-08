@@ -141,6 +141,38 @@ async function seedSettings(): Promise<void> {
       description: 'Vorgaben für die wiederkehrende Prüfung nach ASR A1.7',
       value: { intervalMonths: 12, reminderDaysBefore: 30, requireQualifiedInspector: true },
     },
+    {
+      key: 'mail',
+      category: 'kommunikation',
+      description: 'Absender, Signatur und Anschreiben für den Belegversand',
+      value: {
+        absender: 'Tortechnik Weber GmbH',
+        antwortAn: '',
+        // Ohne eigene Signatur wird sie aus den Firmendaten gebildet; hier
+        // steht sie beispielhaft ausgeschrieben.
+        signatur:
+          'Tortechnik Weber GmbH\nIndustriestraße 14\n48155 Münster\n' +
+          'Telefon 0251 998877-0\ninfo@tortechnik-weber.example',
+        // Leere Vorlagen bedeuten: es gilt die Vorgabe aus dem Programm.
+        vorlagen: {},
+      },
+    },
+    {
+      key: 'datev',
+      category: 'buchhaltung',
+      description: 'Vorgaben für den Buchungsstapel an die Kanzlei',
+      value: {
+        kontenrahmen: 'SKR03',
+        // Berater- und Mandantennummer kommen vom Steuerberater; ohne sie
+        // ordnet DATEV den Stapel keinem Mandanten zu.
+        beraternummer: 0,
+        mandantennummer: 0,
+        sachkontenlaenge: 4,
+        debitorBasis: 10000,
+        festschreibung: false,
+        erloeskonten: { 19: 8400, 7: 8300, 0: 8200 },
+      },
+    },
   ];
 
   for (const setting of settings) {
@@ -1050,9 +1082,10 @@ async function main(): Promise<void> {
       subject: 'Austausch Garagentor inkl. Antrieb',
       introText: 'vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:',
       sentAt: daysFromNow(-6),
-      netTotal: 2166,
-      vatTotal: 411.54,
-      grossTotal: 2577.54,
+      // 1490,00 + 429,00 + 197,50 + 45,00 netto.
+      netTotal: 2161.5,
+      vatTotal: 410.69,
+      grossTotal: 2572.19,
       items: {
         create: [
           {
@@ -1132,9 +1165,11 @@ async function main(): Promise<void> {
       dueDate: daysFromNow(-24),
       serviceDate: daysFromNow(-46),
       subject: 'Reparatur Rollgitter Tiefgarage Wohnpark Aasee',
-      netTotal: 396,
-      vatTotal: 75.24,
-      grossTotal: 471.24,
+      // 237,00 + 101,40 + 45,00 netto; die Summen ergeben sich aus den
+      // Positionen und dürfen nicht von Hand danebenliegen.
+      netTotal: 383.4,
+      vatTotal: 72.85,
+      grossTotal: 456.25,
       items: {
         create: [
           {

@@ -348,6 +348,113 @@ export const DUNNING_TEXTS: Record<string, { anschreiben: string; schluss: strin
   },
 };
 
+/* Postausgang ---------------------------------------------------------- */
+
+/** Belegarten, die sich per Mail verschicken lassen. */
+export const MAIL_DOCUMENT_TYPES = [
+  'ANGEBOT',
+  'RECHNUNG',
+  'MAHNUNG',
+  'SERVICEBERICHT',
+  'PRUEFPROTOKOLL',
+] as const;
+
+export type MailDocumentType = (typeof MAIL_DOCUMENT_TYPES)[number];
+
+/**
+ * Platzhalter in Betreff und Text der Vorlagen. Was hier nicht steht, bleibt
+ * beim Setzen unverändert stehen – ein Tippfehler fällt so im Entwurf auf,
+ * statt beim Kunden zu landen.
+ */
+export const MAIL_PLACEHOLDERS: Array<{ name: string; beschreibung: string }> = [
+  { name: '{anrede}', beschreibung: 'Sehr geehrte Frau Meier,' },
+  { name: '{kunde}', beschreibung: 'Name des Kunden' },
+  { name: '{nummer}', beschreibung: 'Belegnummer' },
+  { name: '{betreff}', beschreibung: 'Betreff des Belegs' },
+  { name: '{datum}', beschreibung: 'Belegdatum' },
+  { name: '{betrag}', beschreibung: 'Bruttobetrag bzw. Gesamtforderung' },
+  { name: '{faellig}', beschreibung: 'Zahlungsziel bzw. Frist' },
+  { name: '{stufe}', beschreibung: 'Mahnstufe' },
+  { name: '{anlage}', beschreibung: 'Toranlage mit Standort' },
+  { name: '{firma}', beschreibung: 'Name des eigenen Betriebs' },
+];
+
+/** Voreingestellte Anschreiben für den Belegversand. */
+export const MAIL_TEMPLATE_DEFAULTS: Record<MailDocumentType, { betreff: string; text: string }> = {
+  ANGEBOT: {
+    betreff: 'Angebot {nummer} – {betreff}',
+    text:
+      '{anrede}\n\n' +
+      'vielen Dank für Ihre Anfrage. Im Anhang finden Sie unser Angebot {nummer} ' +
+      'über {betrag}.\n\n' +
+      'Für Rückfragen stehen wir Ihnen gerne zur Verfügung.',
+  },
+  RECHNUNG: {
+    betreff: 'Rechnung {nummer} – {betreff}',
+    text:
+      '{anrede}\n\n' +
+      'anbei erhalten Sie unsere Rechnung {nummer} vom {datum} über {betrag}.\n' +
+      'Wir bitten um Ausgleich bis zum {faellig}.\n\n' +
+      'Vielen Dank für Ihren Auftrag.',
+  },
+  MAHNUNG: {
+    betreff: '{stufe} zu Rechnung {nummer}',
+    text:
+      '{anrede}\n\n' +
+      'im Anhang finden Sie unsere {stufe} zu Rechnung {nummer} über {betrag}.\n' +
+      'Wir bitten um Ausgleich bis zum {faellig}.',
+  },
+  SERVICEBERICHT: {
+    betreff: 'Servicebericht {nummer} – {anlage}',
+    text:
+      '{anrede}\n\n' +
+      'anbei erhalten Sie den Servicebericht {nummer} zu unserem Einsatz am {datum} ' +
+      'an der Anlage {anlage}.',
+  },
+  PRUEFPROTOKOLL: {
+    betreff: 'Prüfprotokoll {nummer} – {anlage}',
+    text:
+      '{anrede}\n\n' +
+      'anbei erhalten Sie das Prüfprotokoll {nummer} zur Prüfung vom {datum} an der ' +
+      'Anlage {anlage}.\n\n' +
+      'Bitte bewahren Sie das Protokoll bis zur nächsten Prüfung auf; es ist auf ' +
+      'Verlangen der Aufsichtsbehörde vorzulegen.',
+  },
+};
+
+/* Buchhaltung ---------------------------------------------------------- */
+
+/**
+ * Erlöskonten der gängigen Kontenrahmen, nach Steuersatz.
+ *
+ * Es sind Automatikkonten: der Steuerschlüssel ergibt sich in DATEV aus dem
+ * Konto, deshalb bleibt das Feld BU-Schlüssel im Export leer. Wer eigene
+ * Konten führt, überschreibt sie in den Einstellungen.
+ */
+export const CHART_OF_ACCOUNTS = {
+  SKR03: { name: 'SKR03', erloese: { 19: 8400, 7: 8300, 0: 8200 }, debitorBasis: 10000 },
+  SKR04: { name: 'SKR04', erloese: { 19: 4400, 7: 4300, 0: 4200 }, debitorBasis: 10000 },
+} as const;
+
+export type ChartOfAccounts = keyof typeof CHART_OF_ACCOUNTS;
+
+/** Voreinstellungen für den DATEV-Export. */
+export const DATEV_DEFAULTS = {
+  kontenrahmen: 'SKR03' as ChartOfAccounts,
+  /** Beraternummer der Kanzlei; kommt vom Steuerberater. */
+  beraternummer: 0,
+  mandantennummer: 0,
+  /** Stellenzahl der Sachkonten; muss zur Einrichtung der Kanzlei passen. */
+  sachkontenlaenge: 4,
+  debitorBasis: 10000,
+  /**
+   * Festgeschriebene Buchungen sind in DATEV nicht mehr änderbar. Beim ersten
+   * Export lieber offen lassen, bis die Kanzlei den Stapel geprüft hat.
+   */
+  festschreibung: false,
+  erloeskonten: { 19: 8400, 7: 8300, 0: 8200 } as Record<number, number>,
+};
+
 /** Nummernkreise mit Standardpräfix und Stellenzahl. */
 export const NUMBER_RANGE_DEFAULTS = [
   { entity: 'CUSTOMER', prefix: 'K-', padding: 5, yearlyReset: false },

@@ -14,6 +14,24 @@ export interface AppConfig {
     dir: string;
     maxBytes: number;
   };
+  /**
+   * Postausgang. Die Zugangsdaten stehen bewusst in der Umgebung und nicht in
+   * den Einstellungen: sie gehören nicht in die Datenbank und nicht in eine
+   * Sicherung, die jemand herumreicht. Ohne `host` ist der Versand schlicht
+   * nicht eingerichtet – die Anwendung läuft trotzdem.
+   */
+  mail: {
+    host: string | null;
+    port: number;
+    /** Verschlüsselte Verbindung ab dem ersten Byte (Port 465). */
+    secure: boolean;
+    user: string | null;
+    password: string | null;
+    from: string | null;
+    replyTo: string | null;
+    /** Stille Kopie an den eigenen Posteingang, etwa fürs Archiv. */
+    bcc: string | null;
+  };
 }
 
 const DEV_FALLBACK_SECRET = 'dev-access-secret-bitte-ersetzen';
@@ -64,6 +82,18 @@ export function loadConfiguration(): AppConfig {
     uploads: {
       dir: process.env.UPLOAD_DIR ?? './uploads',
       maxBytes: Number.parseInt(process.env.MAX_UPLOAD_MB ?? '25', 10) * 1024 * 1024,
+    },
+    mail: {
+      host: process.env.MAIL_HOST?.trim() || null,
+      port: Number.parseInt(process.env.MAIL_PORT ?? '587', 10),
+      // Port 465 spricht von Anfang an TLS, 587 beginnt offen und wechselt per
+      // STARTTLS. Wer das verwechselt, bekommt eine Zeitüberschreitung.
+      secure: process.env.MAIL_SECURE === 'true' || process.env.MAIL_PORT === '465',
+      user: process.env.MAIL_USER?.trim() || null,
+      password: process.env.MAIL_PASSWORD || null,
+      from: process.env.MAIL_FROM?.trim() || null,
+      replyTo: process.env.MAIL_REPLY_TO?.trim() || null,
+      bcc: process.env.MAIL_BCC?.trim() || null,
     },
   };
 }

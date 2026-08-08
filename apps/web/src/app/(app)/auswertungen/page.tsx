@@ -10,6 +10,7 @@ import {
   orderTypeLabels,
 } from '@garagentor/shared';
 import { useState } from 'react';
+import { DatevExport } from '@/components/datev-export';
 import {
   Badge,
   Card,
@@ -248,6 +249,10 @@ export default function ReportsPage() {
             )}
           </Card>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <DatevExport jahr={year} />
       </div>
     </>
   );

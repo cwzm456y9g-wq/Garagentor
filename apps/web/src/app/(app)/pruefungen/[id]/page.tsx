@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import { PhotoGallery } from '@/components/photo-gallery';
 import { SignaturePad } from '@/components/signature-pad';
+import { MailButton } from '@/components/mail-dialog';
 import {
   Badge,
   Button,
@@ -145,6 +146,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
             <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
               Als PDF
             </Button>
+            <MailButton art="PRUEFPROTOKOLL" id={id} onSent={reload} />
             {!closed && (
               <>
                 <Button
