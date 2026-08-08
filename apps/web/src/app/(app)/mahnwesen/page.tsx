@@ -30,6 +30,7 @@ export default function DunningPage() {
 
   const run = useAction(() => api.post<{ created: number }>('/dunnings/run', {}));
   const send = useAction((id: string) => api.post(`/dunnings/${id}/send`, {}));
+  const pdf = useAction((id: string) => api.openFile(`/dunnings/${id}/pdf`));
 
   const candidates = preview.data ?? [];
 
@@ -56,9 +57,9 @@ export default function DunningPage() {
         }
       />
 
-      {(run.error ?? send.error) && (
+      {(run.error ?? send.error ?? pdf.error) && (
         <div className="mb-4">
-          <ErrorState message={(run.error ?? send.error)!} />
+          <ErrorState message={(run.error ?? send.error ?? pdf.error)!} />
         </div>
       )}
 
@@ -213,17 +214,28 @@ export default function DunningPage() {
                       </Badge>
                     </td>
                     <td className="text-right">
-                      {dunning.status === 'ENTWURF' && (
+                      <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={async () => {
-                            if (await send.run(dunning.id)) list.reload();
-                          }}
+                          className="whitespace-nowrap"
+                          onClick={() => void pdf.run(dunning.id)}
                         >
-                          Als versendet buchen
+                          Als PDF
                         </Button>
-                      )}
+                        {dunning.status === 'ENTWURF' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="whitespace-nowrap"
+                            onClick={async () => {
+                              if (await send.run(dunning.id)) list.reload();
+                            }}
+                          >
+                            Als versendet buchen
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

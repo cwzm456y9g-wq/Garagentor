@@ -6,7 +6,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Angebot, anschrift, Rechnung, type BelegOptionen, type BelegPosition } from './belege';
 import type { Firma } from './din5008';
 import { renderGiroCode } from './girocode';
+import { Mahnung } from './mahnung';
 import { Pruefprotokoll } from './protokoll';
+import { Servicebericht } from './servicebericht';
 
 /** Ein Beleg als PDF samt Dateiname für den Download. */
 export interface BelegDatei {
@@ -114,6 +116,23 @@ export class PdfService {
       plz: rechnungsadresse?.zip ?? null,
       ort: rechnungsadresse?.city ?? null,
     };
+  }
+
+  /**
+   * Briefanrede aus dem Kundenstamm. Ohne bekannte Anrede bleibt es bei der
+   * allgemeinen Form – „Sehr geehrte/r Herr/Frau“ liest sich wie ein
+   * Serienbrief aus dem Automaten.
+   */
+  private anrede(customer: {
+    salutation: string | null;
+    lastName: string | null;
+    companyName: string | null;
+  }): string {
+    if (!customer.companyName && customer.lastName) {
+      if (customer.salutation === 'HERR') return `Sehr geehrter Herr ${customer.lastName},`;
+      if (customer.salutation === 'FRAU') return `Sehr geehrte Frau ${customer.lastName},`;
+    }
+    return 'Sehr geehrte Damen und Herren,';
   }
 
   /* Rechnung ----------------------------------------------------------- */
@@ -317,5 +336,141 @@ export class PdfService {
     );
 
     return { buffer, dateiname: `${inspection.inspectionNumber}.pdf` };
+  }
+
+  /* Servicebericht ------------------------------------------------------ */
+
+  async servicebericht(id: string): Promise<BelegDatei> {
+    const report = await this.prisma.serviceReport.findUnique({
+      where: { id },
+      include: {
+        door: { include: { customer: { include: { addresses: true } } } },
+        order: { include: { customer: { include: { addresses: true } } } },
+        technician: true,
+        materials: { include: { article: { select: { articleNumber: true } } } },
+      },
+    });
+    if (!report) {
+      throw new NotFoundException('Der Servicebericht wurde nicht gefunden.');
+    }
+
+    // Der Kunde kann am Auftrag oder an der Anlage hängen; ohne beides bleibt
+    // das Anschriftfeld leer, statt den Aufruf scheitern zu lassen.
+    const customer = report.order?.customer ?? report.door?.customer ?? null;
+
+    const [firma, fotos] = await Promise.all([
+      this.firma(),
+      this.documents.imagesFor(EntityType.SERVICE_REPORT, id),
+    ]);
+
+    const buffer = await renderToBuffer(
+      <Servicebericht
+        daten={{
+          reportNumber: report.reportNumber,
+          status: report.status,
+          date: report.date,
+          arrivalTime: report.arrivalTime,
+          departureTime: report.departureTime,
+          workHours: zahl(report.workHours),
+          travelHours: zahl(report.travelHours),
+          travelKm: zahl(report.travelKm),
+          faultDescription: report.faultDescription,
+          workPerformed: report.workPerformed,
+          followUpRequired: report.followUpRequired,
+          followUpNote: report.followUpNote,
+          signatureCustomer: report.signatureCustomer,
+          signatureTechnician: report.signatureTechnician,
+          signedByName: report.signedByName,
+          completedAt: report.completedAt,
+          technicianName: report.technician
+            ? `${report.technician.firstName} ${report.technician.lastName}`
+            : '',
+          customerNumber: customer?.customerNumber ?? null,
+          orderNumber: report.order?.orderNumber ?? null,
+          orderSubject: report.order?.subject ?? null,
+          anlage: report.door
+            ? {
+                doorNumber: report.door.doorNumber,
+                location: report.door.location,
+                manufacturer: report.door.manufacturer,
+              }
+            : null,
+          materialien: report.materials.map((material) => ({
+            name: material.name,
+            articleNumber: material.article?.articleNumber ?? null,
+            quantity: zahl(material.quantity),
+            unit: material.unit,
+            unitPrice: zahl(material.unitPrice),
+          })),
+          fotos,
+        }}
+        optionen={{
+          firma,
+          empfaenger: customer ? anschrift(this.empfaenger(customer)) : [],
+        }}
+      />,
+    );
+
+    return { buffer, dateiname: `${report.reportNumber}.pdf` };
+  }
+
+  /* Mahnung ------------------------------------------------------------- */
+
+  async mahnung(id: string): Promise<BelegDatei> {
+    const dunning = await this.prisma.dunning.findUnique({
+      where: { id },
+      include: { invoice: { include: { customer: { include: { addresses: true } } } } },
+    });
+    if (!dunning) {
+      throw new NotFoundException('Die Mahnung wurde nicht gefunden.');
+    }
+
+    const firma = await this.firma();
+    const invoice = dunning.invoice;
+    const gesamt = zahl(dunning.totalAmount);
+
+    // Der GiroCode trägt die Gesamtforderung samt Gebühr und Zinsen – wer nur
+    // den Rechnungsbetrag überweist, bliebe sonst weiter im Verzug.
+    const giroCode =
+      gesamt > 0 && firma.iban
+        ? await renderGiroCode({
+            name: firma.name ?? '',
+            iban: firma.iban,
+            bic: firma.bic ?? null,
+            amount: gesamt,
+            reference: `Rechnung ${invoice.invoiceNumber}`,
+          })
+        : null;
+
+    const buffer = await renderToBuffer(
+      <Mahnung
+        daten={{
+          level: dunning.level,
+          date: dunning.date,
+          dueDate: dunning.dueDate,
+          openAmount: zahl(dunning.openAmount),
+          fee: zahl(dunning.fee),
+          interest: zahl(dunning.interest),
+          interestPercent: zahl(dunning.interestPercent),
+          totalAmount: gesamt,
+          daysOverdue: dunning.daysOverdue,
+          customerNumber: invoice.customer.customerNumber,
+          invoiceNumber: invoice.invoiceNumber,
+          invoiceDate: invoice.date,
+          invoiceDueDate: invoice.dueDate,
+          invoiceSubject: invoice.subject,
+          invoiceGrossTotal: zahl(invoice.grossTotal),
+          invoicePaidAmount: zahl(invoice.paidAmount) + zahl(invoice.deductedAmount),
+          giroCode,
+        }}
+        optionen={{
+          firma,
+          empfaenger: this.empfaenger(invoice.customer),
+          anrede: this.anrede(invoice.customer),
+        }}
+      />,
+    );
+
+    return { buffer, dateiname: `Mahnung-${invoice.invoiceNumber}.pdf` };
   }
 }

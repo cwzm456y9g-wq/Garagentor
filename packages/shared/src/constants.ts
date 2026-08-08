@@ -305,6 +305,49 @@ export const DUNNING_DEFAULTS = [
   { level: 'LETZTE_MAHNUNG', daysOverdue: 42, fee: 15, zinsen: true, graceDays: 5 },
 ] as const;
 
+/**
+ * Anschreiben der Mahnstufen.
+ *
+ * Der Ton steigt bewusst von Stufe zu Stufe: die Zahlungserinnerung geht davon
+ * aus, dass etwas übersehen wurde, die letzte Mahnung kündigt konkrete Schritte
+ * an. `{frist}` wird beim Setzen durch das Zahlungsziel ersetzt.
+ */
+export const DUNNING_TEXTS: Record<string, { anschreiben: string; schluss: string }> = {
+  ZAHLUNGSERINNERUNG: {
+    anschreiben:
+      'vermutlich ist es Ihrer Aufmerksamkeit entgangen: die unten aufgeführte Rechnung ist ' +
+      'noch offen. Sollten Sie den Betrag zwischenzeitlich überwiesen haben, betrachten Sie ' +
+      'dieses Schreiben bitte als gegenstandslos.',
+    schluss: 'Wir bitten Sie, den offenen Betrag bis zum {frist} auszugleichen.',
+  },
+  MAHNUNG_1: {
+    anschreiben:
+      'trotz unserer Zahlungserinnerung ist die unten aufgeführte Rechnung weiterhin offen. ' +
+      'Sie befinden sich damit in Verzug. Wir berechnen daher die gesetzlichen Verzugszinsen ' +
+      'nach § 288 BGB sowie eine Mahngebühr.',
+    schluss: 'Bitte gleichen Sie den Gesamtbetrag bis zum {frist} aus.',
+  },
+  MAHNUNG_2: {
+    anschreiben:
+      'auf unsere erste Mahnung haben wir bislang keinen Zahlungseingang feststellen können. ' +
+      'Wir fordern Sie hiermit erneut auf, die offene Forderung zu begleichen.',
+    schluss: 'Der Gesamtbetrag ist bis zum {frist} bei uns gutzuschreiben.',
+  },
+  LETZTE_MAHNUNG: {
+    anschreiben:
+      'dies ist unsere letzte Mahnung. Geht bis zum genannten Termin keine Zahlung ein, geben ' +
+      'wir die Forderung ohne weitere Ankündigung ab und leiten das gerichtliche Mahnverfahren ' +
+      'ein. Die dadurch entstehenden Kosten haben Sie zu tragen.',
+    schluss: 'Wir erwarten Ihre Zahlung bis spätestens zum {frist}.',
+  },
+  INKASSO: {
+    anschreiben:
+      'die offene Forderung haben wir zur weiteren Bearbeitung abgegeben. Zahlungen mit ' +
+      'schuldbefreiender Wirkung können nur noch an die dort genannte Stelle geleistet werden.',
+    schluss: 'Für Rückfragen wenden Sie sich bitte an die bearbeitende Stelle.',
+  },
+};
+
 /** Nummernkreise mit Standardpräfix und Stellenzahl. */
 export const NUMBER_RANGE_DEFAULTS = [
   { entity: 'CUSTOMER', prefix: 'K-', padding: 5, yearlyReset: false },

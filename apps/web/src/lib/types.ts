@@ -394,6 +394,9 @@ export interface ServiceReport {
   followUpRequired: boolean;
   followUpNote: string | null;
   signedByName: string | null;
+  /** Unterschriften als Data-URL, erfasst beim Abschluss. */
+  signatureCustomer?: string | null;
+  signatureTechnician?: string | null;
   completedAt: string | null;
   door?: Door | null;
   order?: { id: string; orderNumber: string; subject: string } | null;

@@ -5,8 +5,8 @@ import {
   inspectionTypeLabels,
   operationModeLabels,
 } from '@garagentor/shared';
-import { Image, Text, View } from '@react-pdf/renderer';
-import type { ReactNode } from 'react';
+import { Text, View } from '@react-pdf/renderer';
+import { Abschnitt, Datenblatt, Fotobogen, Unterschrift, type Foto } from './bausteine';
 import { Brief, farben, mm, stile, type Firma, type InfoZeile } from './din5008';
 import { ergebnisText, istBeanstandet, messwertText } from './protokoll.werte';
 
@@ -54,13 +54,6 @@ export interface ProtokollMangel {
   dueDate: Date | string | null;
 }
 
-export interface ProtokollFoto {
-  /** Prüfpunkt, an dem das Foto hängt; ohne Angabe gehört es zum Protokoll. */
-  entityRef: string | null;
-  title: string | null;
-  data: string;
-}
-
 export interface ProtokollAnlage {
   doorNumber: string;
   location: string;
@@ -91,7 +84,7 @@ export interface ProtokollDaten {
   anlage: ProtokollAnlage;
   pruefpunkte: ProtokollPruefpunkt[];
   maengel: ProtokollMangel[];
-  fotos: ProtokollFoto[];
+  fotos: Foto[];
 }
 
 export interface ProtokollOptionen {
@@ -100,51 +93,6 @@ export interface ProtokollOptionen {
 }
 
 /* Bausteine ------------------------------------------------------------- */
-
-/** Zweispaltige Aufstellung, wie sie die Anlagendaten brauchen. */
-function Datenblatt({ eintraege }: { eintraege: Array<[string, string]> }) {
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-      {eintraege.map(([label, wert]) => (
-        <View key={label} style={{ flexDirection: 'row', width: '50%', paddingVertical: 0.8 }}>
-          <Text style={[stile.klein, stile.leise, { width: mm(30) }]}>{label}</Text>
-          <Text style={[stile.klein, { flex: 1 }]}>{wert}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function Abschnitt({
-  titel,
-  zusammen = false,
-  children,
-}: {
-  titel: string;
-  /** Hält Überschrift und Inhalt auf einem Blatt. */
-  zusammen?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <View style={{ marginTop: mm(5) }} wrap={!zusammen}>
-      <Text
-        style={[
-          stile.fett,
-          {
-            fontSize: 10,
-            borderBottomWidth: 0.7,
-            borderBottomColor: farben.ink,
-            paddingBottom: 2,
-            marginBottom: 3,
-          },
-        ]}
-      >
-        {titel}
-      </Text>
-      {children}
-    </View>
-  );
-}
 
 /** Ergebniskasten unter dem Betreff. */
 function Ergebnis({ daten }: { daten: ProtokollDaten }) {
@@ -250,65 +198,6 @@ function Pruefpunkt({ punkt }: { punkt: ProtokollPruefpunkt }) {
         {checkResultLabels[punkt.result as keyof typeof checkResultLabels] ?? punkt.result}
       </Text>
     </View>
-  );
-}
-
-/** Unterschriftenfeld: die Signatur wird über die Linie gesetzt. */
-function Unterschrift({
-  rolle,
-  name,
-  signatur,
-  ort,
-}: {
-  rolle: string;
-  name: string;
-  signatur: string | null;
-  ort: string;
-}) {
-  return (
-    <View style={{ width: '47%' }}>
-      <View style={{ height: mm(18), justifyContent: 'flex-end' }}>
-        {signatur ? (
-          <Image src={signatur} style={{ height: mm(16), objectFit: 'contain' }} />
-        ) : null}
-      </View>
-      <View style={{ borderTopWidth: 0.5, borderTopColor: farben.ink, paddingTop: 2 }}>
-        <Text style={[stile.klein, stile.fett]}>{name || '–'}</Text>
-        <Text style={[{ fontSize: 6.5 }, stile.blass]}>{rolle}</Text>
-        <Text style={[{ fontSize: 6.5 }, stile.blass]}>{ort}</Text>
-      </View>
-    </View>
-  );
-}
-
-/** Fotos in zwei Spalten, mit Bezug auf den Prüfpunkt. */
-function Fotos({ fotos, punkte }: { fotos: ProtokollFoto[]; punkte: ProtokollPruefpunkt[] }) {
-  if (fotos.length === 0) return null;
-
-  const labelFor = (ref: string | null): string => {
-    if (!ref) return 'Zur Anlage';
-    const punkt = punkte.find((p) => p.key === ref);
-    return punkt ? `Nr. ${punkt.position} – ${punkt.label}` : ref;
-  };
-
-  return (
-    <Abschnitt titel="Fotodokumentation">
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {fotos.map((foto, index) => (
-          <View
-            key={`${foto.entityRef ?? 'anlage'}-${index}`}
-            style={{ width: '50%', paddingRight: mm(3), paddingBottom: mm(3) }}
-            wrap={false}
-          >
-            <Image src={foto.data} style={{ height: mm(45), objectFit: 'contain' }} />
-            <Text style={[{ fontSize: 6.5 }, stile.blass, { marginTop: 1 }]}>
-              {labelFor(foto.entityRef)}
-            </Text>
-            {foto.title ? <Text style={[{ fontSize: 6.5 }, stile.blass]}>{foto.title}</Text> : null}
-          </View>
-        ))}
-      </View>
-    </Abschnitt>
   );
 }
 
@@ -444,7 +333,14 @@ export function Pruefprotokoll({
         </Abschnitt>
       ) : null}
 
-      <Fotos fotos={daten.fotos} punkte={daten.pruefpunkte} />
+      <Fotobogen
+        fotos={daten.fotos}
+        beschriften={(ref) => {
+          if (!ref) return 'Zur Anlage';
+          const punkt = daten.pruefpunkte.find((p) => p.key === ref);
+          return punkt ? `Nr. ${punkt.position} – ${punkt.label}` : ref;
+        }}
+      />
 
       {/* Überschrift, Hinweis und Unterschriften gehören zusammen: eine
           Unterschriftenzeile ohne den Text darüber ist als Nachweis wertlos. */}
