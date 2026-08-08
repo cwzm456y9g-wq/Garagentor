@@ -2,20 +2,41 @@ import 'reflect-metadata';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { DecimalInterceptor } from './common/interceptors/decimal.interceptor';
 import { loadConfiguration } from './config/configuration';
 
+/** Übliche Obergrenze für Anfragerümpfe. */
+const STANDARD_BODY_LIMIT = '100kb';
+
+/** Größerer Rahmen für die Einstellungen, die das Logo als Data-URL tragen. */
+const LOGO_BODY_LIMIT = '1mb';
+
 async function bootstrap(): Promise<void> {
   const config = loadConfiguration();
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // Der eingebaute Parser wird abgeschaltet, weil die Grenze pfadabhängig ist –
+  // sonst liefen zwei Parser gegeneinander.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
 
   app.setGlobalPrefix('api');
+
+  // Die Einstellungen tragen das Firmenlogo als Data-URL und überschreiten damit
+  // die üblichen 100 kB. Der größere Rahmen gilt bewusst nur für diesen Pfad;
+  // die Reihenfolge zählt, der engere Parser darf erst danach greifen.
+  app.use('/api/settings', json({ limit: LOGO_BODY_LIMIT }));
+  app.use(json({ limit: STANDARD_BODY_LIMIT }));
+  app.use(urlencoded({ extended: true, limit: STANDARD_BODY_LIMIT }));
   // Uploads werden als Data-URL/Datei ausgeliefert, daher kein strenger CORP.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({ origin: config.corsOrigins, credentials: true });
+
+  // Die Einstellungen tragen das Firmenlogo als Data-URL und überschreiten damit
+  // die voreingestellten 100 kB für JSON. Der größere Rahmen gilt bewusst nur
+  // für diesen Pfad – alle übrigen Endpunkte bleiben bei der engen Grenze.
+  // Reihenfolge zählt: der eigene Parser muss vor dem allgemeinen greifen.
 
   app.useGlobalPipes(
     new ValidationPipe({

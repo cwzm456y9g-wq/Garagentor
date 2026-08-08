@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/auth.decorators';
-import { UpdateNumberRangeDto, UpsertSettingDto } from './dto/settings.dto';
+import { SavePresetDto, UpdateNumberRangeDto, UpsertSettingDto } from './dto/settings.dto';
 import { SettingsService } from './settings.service';
 
 @ApiTags('Einstellungen')
@@ -42,6 +42,42 @@ export class SettingsController {
   @ApiOperation({ summary: 'Einzelne Einstellung lesen' })
   findOne(@Param('key') key: string) {
     return this.settings.findOne(key);
+  }
+
+  /* Vorlagen ----------------------------------------------------------- */
+
+  @Get(':key/presets')
+  @ApiOperation({ summary: 'Vorlagen einer Einstellung auflisten, Favorit zuerst' })
+  findPresets(@Param('key') key: string) {
+    return this.settings.findPresets(key);
+  }
+
+  @Post(':key/presets')
+  @Roles(Role.GESCHAEFTSFUEHRUNG)
+  @ApiOperation({ summary: 'Aktuellen Stand als Vorlage festhalten' })
+  savePreset(@Param('key') key: string, @Body() dto: SavePresetDto) {
+    return this.settings.savePreset(key, dto);
+  }
+
+  @Patch(':key/presets/:id/favorite')
+  @Roles(Role.GESCHAEFTSFUEHRUNG)
+  @ApiOperation({ summary: 'Vorlage als Favorit markieren' })
+  markPresetFavorite(@Param('key') key: string, @Param('id') id: string) {
+    return this.settings.markPresetFavorite(key, id);
+  }
+
+  @Post(':key/presets/:id/apply')
+  @Roles(Role.GESCHAEFTSFUEHRUNG)
+  @ApiOperation({ summary: 'Vorlage als aktuellen Stand einsetzen' })
+  applyPreset(@Param('key') key: string, @Param('id') id: string) {
+    return this.settings.applyPreset(key, id);
+  }
+
+  @Delete(':key/presets/:id')
+  @Roles(Role.GESCHAEFTSFUEHRUNG)
+  @ApiOperation({ summary: 'Vorlage entfernen' })
+  removePreset(@Param('key') key: string, @Param('id') id: string) {
+    return this.settings.removePreset(key, id);
   }
 
   @Put(':key')

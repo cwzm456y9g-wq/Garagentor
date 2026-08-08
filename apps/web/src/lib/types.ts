@@ -720,6 +720,63 @@ export interface Setting {
   description: string | null;
 }
 
+/** Festgehaltener Stand einer Einstellungsgruppe. */
+export interface SettingPreset {
+  id: string;
+  settingKey: string;
+  name: string;
+  favorite: boolean;
+  value: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Firmendaten für Belegköpfe und Fußzeilen. */
+export interface CompanySettings {
+  name?: string;
+  street?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  vatId?: string;
+  taxNumber?: string;
+  managingDirector?: string;
+  registerCourt?: string;
+  registerNumber?: string;
+  bankName?: string;
+  iban?: string;
+  bic?: string;
+  /** Logo als Data-URL, wird auf den Belegen eingebettet. */
+  logo?: string;
+}
+
+/** Vorgaben für Angebote und Rechnungen. */
+export interface DocumentSettings {
+  defaultVatRate?: number;
+  defaultPaymentTermsDays?: number;
+  quoteValidityDays?: number;
+  quoteIntroText?: string;
+  quoteOutroText?: string;
+  invoiceOutroText?: string;
+}
+
+export interface DunningLevelSetting {
+  level: string;
+  daysOverdue: number;
+  fee: number;
+  interestPercent: number;
+  graceDays: number;
+}
+
+export interface InspectionSettings {
+  intervalMonths?: number;
+  reminderDaysBefore?: number;
+  requireQualifiedInspector?: boolean;
+}
+
 export interface OrderStatistics {
   nachStatus: Array<{ status: OrderStatus; anzahl: number; netto: number }>;
   nachArt: Array<{ art: OrderType; anzahl: number; netto: number }>;

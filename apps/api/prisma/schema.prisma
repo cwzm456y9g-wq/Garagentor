@@ -13,9 +13,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ------------------------------------------------------------------ */
-/* Benutzer und Zugriff                                                */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Benutzer und Zugriff
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum Role {
   ADMIN
@@ -66,9 +72,15 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-/* ------------------------------------------------------------------ */
-/* Personal                                                            */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Personal
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum EmploymentType {
   VOLLZEIT
@@ -125,12 +137,12 @@ model Employee {
   qualifications  Qualification[]
   absences        Absence[]
   timeEntries     TimeEntry[]
-  inspections     Inspection[]        @relation("InspectionInspector")
-  serviceReports  ServiceReport[]     @relation("ServiceReportTechnician")
-  appointments    Appointment[]       @relation("AppointmentAssignees")
-  managedProjects Project[]           @relation("ProjectManager")
-  projectTasks    ProjectTask[]       @relation("ProjectTaskAssignee")
-  approvedAbsence Absence[]           @relation("AbsenceApprover")
+  inspections     Inspection[]    @relation("InspectionInspector")
+  serviceReports  ServiceReport[] @relation("ServiceReportTechnician")
+  appointments    Appointment[]   @relation("AppointmentAssignees")
+  managedProjects Project[]       @relation("ProjectManager")
+  projectTasks    ProjectTask[]   @relation("ProjectTaskAssignee")
+  approvedAbsence Absence[]       @relation("AbsenceApprover")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,17 +154,17 @@ model Employee {
 /// Nachweise wie die Sachkunde für kraftbetätigte Tore (DGUV Information 208-022)
 /// oder die Elektrofachkraft nach DGUV Vorschrift 3.
 model Qualification {
-  id          String    @id @default(cuid())
-  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId  String
-  name        String
-  issuer      String?
-  certificate String?
-  issuedAt    DateTime?
-  expiresAt   DateTime?
+  id                     String    @id @default(cuid())
+  employee               Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId             String
+  name                   String
+  issuer                 String?
+  certificate            String?
+  issuedAt               DateTime?
+  expiresAt              DateTime?
   /// Berechtigt zur Durchführung wiederkehrender Prüfungen nach ASR A1.7.
-  qualifiesForInspection Boolean @default(false)
-  notes       String?
+  qualifiesForInspection Boolean   @default(false)
+  notes                  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -185,9 +197,15 @@ model Absence {
   @@map("absences")
 }
 
-/* ------------------------------------------------------------------ */
-/* Kunden                                                              */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Kunden
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum CustomerType {
   PRIVAT
@@ -210,28 +228,28 @@ enum AddressType {
 }
 
 model Customer {
-  id             String       @id @default(cuid())
-  customerNumber String       @unique
-  type           CustomerType @default(PRIVAT)
-  salutation     Salutation?
-  companyName    String?
-  firstName      String?
-  lastName       String?
-  email          String?
-  phone          String?
-  mobile         String?
-  website        String?
+  id               String       @id @default(cuid())
+  customerNumber   String       @unique
+  type             CustomerType @default(PRIVAT)
+  salutation       Salutation?
+  companyName      String?
+  firstName        String?
+  lastName         String?
+  email            String?
+  phone            String?
+  mobile           String?
+  website          String?
   /// Umsatzsteuer-Identifikationsnummer.
-  vatId          String?
-  taxNumber      String?
-  paymentTermsDays Int        @default(14)
+  vatId            String?
+  taxNumber        String?
+  paymentTermsDays Int          @default(14)
   /// Kundenrabatt in Prozent auf alle Positionen.
-  discountPercent  Decimal    @default(0) @db.Decimal(5, 2)
+  discountPercent  Decimal      @default(0) @db.Decimal(5, 2)
   /// Kunde ist von der Umsatzsteuer befreit (§ 13b UStG o. Ä.).
-  reverseCharge  Boolean      @default(false)
-  creditLimit    Decimal?     @db.Decimal(12, 2)
-  notes          String?
-  active         Boolean      @default(true)
+  reverseCharge    Boolean      @default(false)
+  creditLimit      Decimal?     @db.Decimal(12, 2)
+  notes            String?
+  active           Boolean      @default(true)
 
   addresses            Address[]
   contacts             Contact[]
@@ -295,19 +313,19 @@ model Contact {
 
 /// Objekt bzw. Liegenschaft, an der Toranlagen verbaut sind.
 model Site {
-  id         String   @id @default(cuid())
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerId String
-  name       String
-  street     String
-  zip        String
-  city       String
-  country    String   @default("DE")
+  id           String   @id @default(cuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  name         String
+  street       String
+  zip          String
+  city         String
+  country      String   @default("DE")
   /// Hinweise zur Zufahrt, Schlüsselübergabe o. Ä.
-  accessNotes String?
-  contactName String?
+  accessNotes  String?
+  contactName  String?
   contactPhone String?
-  active     Boolean  @default(true)
+  active       Boolean  @default(true)
 
   doors        Door[]
   quotes       Quote[]
@@ -322,9 +340,15 @@ model Site {
   @@map("sites")
 }
 
-/* ------------------------------------------------------------------ */
-/* Angebote                                                            */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Angebote
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum QuoteStatus {
   ENTWURF
@@ -343,27 +367,27 @@ enum LineItemType {
 }
 
 model Quote {
-  id          String      @id @default(cuid())
-  quoteNumber String      @unique
-  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  customerId  String
-  site        Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  siteId      String?
-  status      QuoteStatus @default(ENTWURF)
-  date        DateTime    @default(now())
-  validUntil  DateTime
-  subject     String
-  introText   String?
-  outroText   String?
+  id              String      @id @default(cuid())
+  quoteNumber     String      @unique
+  customer        Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId      String
+  site            Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId          String?
+  status          QuoteStatus @default(ENTWURF)
+  date            DateTime    @default(now())
+  validUntil      DateTime
+  subject         String
+  introText       String?
+  outroText       String?
   /// Gesamtrabatt in Prozent auf die Nettosumme.
-  discountPercent Decimal @default(0) @db.Decimal(5, 2)
-  netTotal    Decimal     @default(0) @db.Decimal(12, 2)
-  vatTotal    Decimal     @default(0) @db.Decimal(12, 2)
-  grossTotal  Decimal     @default(0) @db.Decimal(12, 2)
-  sentAt      DateTime?
-  decidedAt   DateTime?
+  discountPercent Decimal     @default(0) @db.Decimal(5, 2)
+  netTotal        Decimal     @default(0) @db.Decimal(12, 2)
+  vatTotal        Decimal     @default(0) @db.Decimal(12, 2)
+  grossTotal      Decimal     @default(0) @db.Decimal(12, 2)
+  sentAt          DateTime?
+  decidedAt       DateTime?
   rejectionReason String?
-  notes       String?
+  notes           String?
 
   items  QuoteItem[]
   orders Order[]
@@ -377,32 +401,38 @@ model Quote {
 }
 
 model QuoteItem {
-  id          String       @id @default(cuid())
-  quote       Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  quoteId     String
-  position    Int
-  type        LineItemType @default(LEISTUNG)
-  article     Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
-  articleId   String?
-  title       String
-  description String?
-  quantity    Decimal      @default(1) @db.Decimal(12, 3)
-  unit        String       @default("Stk")
-  unitPrice   Decimal      @default(0) @db.Decimal(12, 2)
-  discountPercent Decimal  @default(0) @db.Decimal(5, 2)
-  vatRate     Decimal      @default(19) @db.Decimal(5, 2)
-  netAmount   Decimal      @default(0) @db.Decimal(12, 2)
+  id              String       @id @default(cuid())
+  quote           Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quoteId         String
+  position        Int
+  type            LineItemType @default(LEISTUNG)
+  article         Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId       String?
+  title           String
+  description     String?
+  quantity        Decimal      @default(1) @db.Decimal(12, 3)
+  unit            String       @default("Stk")
+  unitPrice       Decimal      @default(0) @db.Decimal(12, 2)
+  discountPercent Decimal      @default(0) @db.Decimal(5, 2)
+  vatRate         Decimal      @default(19) @db.Decimal(5, 2)
+  netAmount       Decimal      @default(0) @db.Decimal(12, 2)
   /// Optionale Position, die nicht in die Angebotssumme einfließt.
-  optional    Boolean      @default(false)
+  optional        Boolean      @default(false)
 
   @@unique([quoteId, position])
   @@index([articleId])
   @@map("quote_items")
 }
 
-/* ------------------------------------------------------------------ */
-/* Aufträge                                                            */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Aufträge
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum OrderStatus {
   ANGELEGT
@@ -424,31 +454,31 @@ enum OrderType {
 }
 
 model Order {
-  id          String      @id @default(cuid())
-  orderNumber String      @unique
-  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  customerId  String
-  site        Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  siteId      String?
-  quote       Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  quoteId     String?
-  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  projectId   String?
-  type        OrderType   @default(MONTAGE)
-  status      OrderStatus @default(ANGELEGT)
-  subject     String
-  description String?
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique
+  customer          Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId        String
+  site              Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId            String?
+  quote             Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  quoteId           String?
+  project           Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId         String?
+  type              OrderType   @default(MONTAGE)
+  status            OrderStatus @default(ANGELEGT)
+  subject           String
+  description       String?
   /// Bestellnummer oder Aktenzeichen des Kunden.
   customerReference String?
-  plannedStart DateTime?
-  plannedEnd   DateTime?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  netTotal     Decimal    @default(0) @db.Decimal(12, 2)
-  vatTotal     Decimal    @default(0) @db.Decimal(12, 2)
-  grossTotal   Decimal    @default(0) @db.Decimal(12, 2)
-  discountPercent Decimal @default(0) @db.Decimal(5, 2)
-  notes        String?
+  plannedStart      DateTime?
+  plannedEnd        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  netTotal          Decimal     @default(0) @db.Decimal(12, 2)
+  vatTotal          Decimal     @default(0) @db.Decimal(12, 2)
+  grossTotal        Decimal     @default(0) @db.Decimal(12, 2)
+  discountPercent   Decimal     @default(0) @db.Decimal(5, 2)
+  notes             String?
 
   items          OrderItem[]
   invoices       Invoice[]
@@ -468,32 +498,38 @@ model Order {
 }
 
 model OrderItem {
-  id          String       @id @default(cuid())
-  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId     String
-  position    Int
-  type        LineItemType @default(LEISTUNG)
-  article     Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
-  articleId   String?
-  title       String
-  description String?
-  quantity    Decimal      @default(1) @db.Decimal(12, 3)
-  unit        String       @default("Stk")
-  unitPrice   Decimal      @default(0) @db.Decimal(12, 2)
-  discountPercent Decimal  @default(0) @db.Decimal(5, 2)
-  vatRate     Decimal      @default(19) @db.Decimal(5, 2)
-  netAmount   Decimal      @default(0) @db.Decimal(12, 2)
+  id               String       @id @default(cuid())
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId          String
+  position         Int
+  type             LineItemType @default(LEISTUNG)
+  article          Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId        String?
+  title            String
+  description      String?
+  quantity         Decimal      @default(1) @db.Decimal(12, 3)
+  unit             String       @default("Stk")
+  unitPrice        Decimal      @default(0) @db.Decimal(12, 2)
+  discountPercent  Decimal      @default(0) @db.Decimal(5, 2)
+  vatRate          Decimal      @default(19) @db.Decimal(5, 2)
+  netAmount        Decimal      @default(0) @db.Decimal(12, 2)
   /// Bereits in einer Rechnung abgerechnete Menge.
-  invoicedQuantity Decimal @default(0) @db.Decimal(12, 3)
+  invoicedQuantity Decimal      @default(0) @db.Decimal(12, 3)
 
   @@unique([orderId, position])
   @@index([articleId])
   @@map("order_items")
 }
 
-/* ------------------------------------------------------------------ */
-/* Rechnungen, Zahlungen, Mahnwesen                                    */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Rechnungen, Zahlungen, Mahnwesen
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum InvoiceType {
   RECHNUNG
@@ -536,33 +572,33 @@ enum DunningStatus {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  type          InvoiceType   @default(RECHNUNG)
-  status        InvoiceStatus @default(ENTWURF)
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  customerId    String
-  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderId       String?
-  date          DateTime      @default(now())
-  dueDate       DateTime
-  serviceDate   DateTime?
-  subject       String
-  introText     String?
-  outroText     String?
-  discountPercent Decimal     @default(0) @db.Decimal(5, 2)
-  netTotal      Decimal       @default(0) @db.Decimal(12, 2)
-  vatTotal      Decimal       @default(0) @db.Decimal(12, 2)
-  grossTotal    Decimal       @default(0) @db.Decimal(12, 2)
-  paidAmount    Decimal       @default(0) @db.Decimal(12, 2)
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  type            InvoiceType   @default(RECHNUNG)
+  status          InvoiceStatus @default(ENTWURF)
+  customer        Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId      String
+  order           Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId         String?
+  date            DateTime      @default(now())
+  dueDate         DateTime
+  serviceDate     DateTime?
+  subject         String
+  introText       String?
+  outroText       String?
+  discountPercent Decimal       @default(0) @db.Decimal(5, 2)
+  netTotal        Decimal       @default(0) @db.Decimal(12, 2)
+  vatTotal        Decimal       @default(0) @db.Decimal(12, 2)
+  grossTotal      Decimal       @default(0) @db.Decimal(12, 2)
+  paidAmount      Decimal       @default(0) @db.Decimal(12, 2)
   /// Verrechnete Abschlagsrechnungen bei einer Schlussrechnung.
-  deductedAmount Decimal      @default(0) @db.Decimal(12, 2)
-  sentAt        DateTime?
-  paidAt        DateTime?
-  cancelledAt   DateTime?
+  deductedAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  sentAt          DateTime?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
   /// Höchste bisher erreichte Mahnstufe.
-  dunningLevel  DunningLevel?
-  notes         String?
+  dunningLevel    DunningLevel?
+  notes           String?
 
   items    InvoiceItem[]
   payments Payment[]
@@ -578,21 +614,21 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String       @id @default(cuid())
-  invoice     Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId   String
-  position    Int
-  type        LineItemType @default(LEISTUNG)
-  article     Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
-  articleId   String?
-  title       String
-  description String?
-  quantity    Decimal      @default(1) @db.Decimal(12, 3)
-  unit        String       @default("Stk")
-  unitPrice   Decimal      @default(0) @db.Decimal(12, 2)
-  discountPercent Decimal  @default(0) @db.Decimal(5, 2)
-  vatRate     Decimal      @default(19) @db.Decimal(5, 2)
-  netAmount   Decimal      @default(0) @db.Decimal(12, 2)
+  id              String       @id @default(cuid())
+  invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  position        Int
+  type            LineItemType @default(LEISTUNG)
+  article         Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId       String?
+  title           String
+  description     String?
+  quantity        Decimal      @default(1) @db.Decimal(12, 3)
+  unit            String       @default("Stk")
+  unitPrice       Decimal      @default(0) @db.Decimal(12, 2)
+  discountPercent Decimal      @default(0) @db.Decimal(5, 2)
+  vatRate         Decimal      @default(19) @db.Decimal(5, 2)
+  netAmount       Decimal      @default(0) @db.Decimal(12, 2)
 
   @@unique([invoiceId, position])
   @@index([articleId])
@@ -617,22 +653,22 @@ model Payment {
 }
 
 model Dunning {
-  id        String        @id @default(cuid())
-  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId String
-  level     DunningLevel
-  status    DunningStatus @default(ENTWURF)
-  date      DateTime      @default(now())
+  id          String        @id @default(cuid())
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  level       DunningLevel
+  status      DunningStatus @default(ENTWURF)
+  date        DateTime      @default(now())
   /// Neue Zahlungsfrist aus der Mahnung.
-  dueDate   DateTime
+  dueDate     DateTime
   /// Offener Rechnungsbetrag zum Zeitpunkt der Mahnung.
-  openAmount Decimal      @db.Decimal(12, 2)
-  fee       Decimal       @default(0) @db.Decimal(12, 2)
-  interest  Decimal       @default(0) @db.Decimal(12, 2)
-  totalAmount Decimal     @db.Decimal(12, 2)
+  openAmount  Decimal       @db.Decimal(12, 2)
+  fee         Decimal       @default(0) @db.Decimal(12, 2)
+  interest    Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal       @db.Decimal(12, 2)
   daysOverdue Int
-  sentAt    DateTime?
-  notes     String?
+  sentAt      DateTime?
+  notes       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -642,9 +678,15 @@ model Dunning {
   @@map("dunnings")
 }
 
-/* ------------------------------------------------------------------ */
-/* Branchenmodul: Toranlagen, Prüfungen, Service                       */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Branchenmodul: Toranlagen, Prüfungen, Service
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum DoorType {
   SECTIONALTOR
@@ -675,25 +717,25 @@ enum DoorStatus {
 /// Eine Toranlage beim Kunden. Kraftbetätigte Anlagen unterliegen der
 /// wiederkehrenden Prüfung nach ASR A1.7 Abschnitt 10.
 model Door {
-  id            String        @id @default(cuid())
-  doorNumber    String        @unique
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerId    String
-  site          Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  siteId        String?
-  type          DoorType
-  operationMode OperationMode @default(KRAFTBETAETIGT)
-  status        DoorStatus    @default(IN_BETRIEB)
+  id                String        @id @default(cuid())
+  doorNumber        String        @unique
+  customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId        String
+  site              Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId            String?
+  type              DoorType
+  operationMode     OperationMode @default(KRAFTBETAETIGT)
+  status            DoorStatus    @default(IN_BETRIEB)
   /// Bezeichnung des Einbauorts, z. B. "Halle 2, Tor Nord".
-  location      String
-  manufacturer  String?
-  model         String?
-  serialNumber  String?
-  yearBuilt     Int?
-  widthMm       Int?
-  heightMm      Int?
+  location          String
+  manufacturer      String?
+  model             String?
+  serialNumber      String?
+  yearBuilt         Int?
+  widthMm           Int?
+  heightMm          Int?
   /// Gewicht des Torblatts in Kilogramm, relevant für die Absturzsicherung.
-  weightKg      Decimal?      @db.Decimal(8, 2)
+  weightKg          Decimal?      @db.Decimal(8, 2)
   driveManufacturer String?
   driveModel        String?
   driveSerialNumber String?
@@ -701,7 +743,7 @@ model Door {
   warrantyUntil     DateTime?
   /// Nächste fällige Prüfung; wird bei jeder Prüfung fortgeschrieben.
   nextInspectionDue DateTime?
-  notes         String?
+  notes             String?
 
   inspections    Inspection[]
   defects        Defect[]
@@ -741,29 +783,29 @@ enum CheckResult {
 
 /// Prüfprotokoll einer Toranlage nach ASR A1.7.
 model Inspection {
-  id               String            @id @default(cuid())
-  inspectionNumber String            @unique
-  door             Door              @relation(fields: [doorId], references: [id], onDelete: Cascade)
-  doorId           String
-  order            Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderId          String?
-  type             InspectionType    @default(WIEDERKEHRENDE_PRUEFUNG)
-  date             DateTime          @default(now())
+  id                 String            @id @default(cuid())
+  inspectionNumber   String            @unique
+  door               Door              @relation(fields: [doorId], references: [id], onDelete: Cascade)
+  doorId             String
+  order              Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId            String?
+  type               InspectionType    @default(WIEDERKEHRENDE_PRUEFUNG)
+  date               DateTime          @default(now())
   /// Sachkundige Person, die die Prüfung durchgeführt hat.
-  inspector        Employee?         @relation("InspectionInspector", fields: [inspectorId], references: [id], onDelete: SetNull)
-  inspectorId      String?
+  inspector          Employee?         @relation("InspectionInspector", fields: [inspectorId], references: [id], onDelete: SetNull)
+  inspectorId        String?
   /// Name der prüfenden Person im Klartext (auch für Fremdprüfungen).
-  inspectorName    String
-  result           InspectionResult?
+  inspectorName      String
+  result             InspectionResult?
   /// Nächster Prüftermin, üblicherweise Prüfdatum + 12 Monate.
-  nextDueDate      DateTime?
-  summary          String?
-  recommendation   String?
+  nextDueDate        DateTime?
+  summary            String?
+  recommendation     String?
   /// Unterschrift der prüfenden Person als Data-URL.
   signatureInspector String?
   signatureCustomer  String?
   signedByName       String?
-  completedAt      DateTime?
+  completedAt        DateTime?
 
   checks  InspectionCheck[]
   defects Defect[]
@@ -778,22 +820,22 @@ model Inspection {
 
 /// Einzelner Prüfpunkt des Protokolls, befüllt aus dem Prüfkatalog.
 model InspectionCheck {
-  id           String      @id @default(cuid())
-  inspection   Inspection  @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  inspectionId String
-  position     Int
+  id            String      @id @default(cuid())
+  inspection    Inspection  @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  inspectionId  String
+  position      Int
   /// Schlüssel aus ASR_A17_CHECK_CATALOG.
-  key          String
-  group        String
-  label        String
-  reference    String?
-  result       CheckResult @default(NICHT_GEPRUEFT)
+  key           String
+  group         String
+  label         String
+  reference     String?
+  result        CheckResult @default(NICHT_GEPRUEFT)
   /// Messwert, z. B. Schließkraft in Newton.
-  measuredValue Decimal?   @db.Decimal(10, 2)
-  unit         String?
+  measuredValue Decimal?    @db.Decimal(10, 2)
+  unit          String?
   /// Grenzwert, gegen den gemessen wurde.
-  limitValue   Decimal?    @db.Decimal(10, 2)
-  comment      String?
+  limitValue    Decimal?    @db.Decimal(10, 2)
+  comment       String?
 
   @@unique([inspectionId, position])
   @@index([inspectionId])
@@ -847,31 +889,31 @@ enum ServiceReportStatus {
 
 /// Digitaler Servicebericht des Monteurs vor Ort.
 model ServiceReport {
-  id           String              @id @default(cuid())
-  reportNumber String              @unique
-  order        Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderId      String?
-  door         Door?               @relation(fields: [doorId], references: [id], onDelete: SetNull)
-  doorId       String?
-  technician   Employee?           @relation("ServiceReportTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
-  technicianId String?
-  status       ServiceReportStatus @default(ENTWURF)
-  date         DateTime            @default(now())
-  arrivalTime  DateTime?
-  departureTime DateTime?
+  id                  String              @id @default(cuid())
+  reportNumber        String              @unique
+  order               Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId             String?
+  door                Door?               @relation(fields: [doorId], references: [id], onDelete: SetNull)
+  doorId              String?
+  technician          Employee?           @relation("ServiceReportTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  technicianId        String?
+  status              ServiceReportStatus @default(ENTWURF)
+  date                DateTime            @default(now())
+  arrivalTime         DateTime?
+  departureTime       DateTime?
   /// Arbeitszeit in Stunden.
-  workHours    Decimal             @default(0) @db.Decimal(6, 2)
-  travelHours  Decimal             @default(0) @db.Decimal(6, 2)
-  travelKm     Decimal             @default(0) @db.Decimal(8, 2)
-  faultDescription String?
-  workPerformed    String
+  workHours           Decimal             @default(0) @db.Decimal(6, 2)
+  travelHours         Decimal             @default(0) @db.Decimal(6, 2)
+  travelKm            Decimal             @default(0) @db.Decimal(8, 2)
+  faultDescription    String?
+  workPerformed       String
   /// Weitere Arbeiten erforderlich (Folgeauftrag).
-  followUpRequired Boolean         @default(false)
-  followUpNote     String?
+  followUpRequired    Boolean             @default(false)
+  followUpNote        String?
   signatureCustomer   String?
   signatureTechnician String?
   signedByName        String?
-  completedAt  DateTime?
+  completedAt         DateTime?
 
   materials ServiceReportMaterial[]
 
@@ -907,25 +949,25 @@ enum MaintenanceContractStatus {
 }
 
 model MaintenanceContract {
-  id             String                    @id @default(cuid())
-  contractNumber String                    @unique
-  customer       Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerId     String
-  status         MaintenanceContractStatus @default(AKTIV)
-  title          String
+  id                 String                    @id @default(cuid())
+  contractNumber     String                    @unique
+  customer           Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId         String
+  status             MaintenanceContractStatus @default(AKTIV)
+  title              String
   /// Wartungsintervall in Monaten.
-  intervalMonths Int                       @default(12)
+  intervalMonths     Int                       @default(12)
   /// Pauschale je Wartungseinsatz.
-  price          Decimal                   @default(0) @db.Decimal(12, 2)
-  startDate      DateTime
-  endDate        DateTime?
+  price              Decimal                   @default(0) @db.Decimal(12, 2)
+  startDate          DateTime
+  endDate            DateTime?
   /// Kündigungsfrist in Monaten.
-  noticePeriodMonths Int                   @default(3)
-  lastServiceDate DateTime?
-  nextServiceDate DateTime?
+  noticePeriodMonths Int                       @default(3)
+  lastServiceDate    DateTime?
+  nextServiceDate    DateTime?
   /// Beinhaltet die wiederkehrende Prüfung nach ASR A1.7.
-  includesInspection Boolean               @default(true)
-  notes          String?
+  includesInspection Boolean                   @default(true)
+  notes              String?
 
   doors Door[] @relation("MaintenanceContractDoors")
 
@@ -937,9 +979,15 @@ model MaintenanceContract {
   @@map("maintenance_contracts")
 }
 
-/* ------------------------------------------------------------------ */
-/* Lager und Beschaffung                                               */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Lager und Beschaffung
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum StockMovementType {
   ZUGANG
@@ -951,27 +999,27 @@ enum StockMovementType {
 }
 
 model Article {
-  id            String   @id @default(cuid())
-  articleNumber String   @unique
-  name          String
-  description   String?
-  category      String?
-  manufacturer  String?
+  id                 String    @id @default(cuid())
+  articleNumber      String    @unique
+  name               String
+  description        String?
+  category           String?
+  manufacturer       String?
   /// Artikelnummer des Herstellers.
   manufacturerNumber String?
-  ean           String?
-  unit          String   @default("Stk")
-  purchasePrice Decimal  @default(0) @db.Decimal(12, 2)
-  salesPrice    Decimal  @default(0) @db.Decimal(12, 2)
-  vatRate       Decimal  @default(19) @db.Decimal(5, 2)
-  stock         Decimal  @default(0) @db.Decimal(12, 3)
-  minStock      Decimal  @default(0) @db.Decimal(12, 3)
-  storageLocation String?
-  supplier      Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  supplierId    String?
+  ean                String?
+  unit               String    @default("Stk")
+  purchasePrice      Decimal   @default(0) @db.Decimal(12, 2)
+  salesPrice         Decimal   @default(0) @db.Decimal(12, 2)
+  vatRate            Decimal   @default(19) @db.Decimal(5, 2)
+  stock              Decimal   @default(0) @db.Decimal(12, 3)
+  minStock           Decimal   @default(0) @db.Decimal(12, 3)
+  storageLocation    String?
+  supplier           Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierId         String?
   /// Lagerartikel werden bestandsgeführt, Leistungen nicht.
-  stockManaged  Boolean  @default(true)
-  active        Boolean  @default(true)
+  stockManaged       Boolean   @default(true)
+  active             Boolean   @default(true)
 
   stockMovements     StockMovement[]
   quoteItems         QuoteItem[]
@@ -990,23 +1038,23 @@ model Article {
 }
 
 model StockMovement {
-  id        String            @id @default(cuid())
-  article   Article           @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  articleId String
-  type      StockMovementType
+  id              String            @id @default(cuid())
+  article         Article           @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId       String
+  type            StockMovementType
   /// Bewegungsmenge, bei Abgängen positiv angegeben.
-  quantity  Decimal           @db.Decimal(12, 3)
+  quantity        Decimal           @db.Decimal(12, 3)
   /// Bestand nach der Buchung.
-  stockAfter Decimal          @db.Decimal(12, 3)
-  date      DateTime          @default(now())
-  order     Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderId   String?
-  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  stockAfter      Decimal           @db.Decimal(12, 3)
+  date            DateTime          @default(now())
+  order           Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId         String?
+  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   purchaseOrderId String?
-  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId    String?
-  reference String?
-  note      String?
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId          String?
+  reference       String?
+  note            String?
 
   createdAt DateTime @default(now())
 
@@ -1016,23 +1064,23 @@ model StockMovement {
 }
 
 model Supplier {
-  id             String  @id @default(cuid())
-  supplierNumber String  @unique
-  name           String
-  contactName    String?
-  email          String?
-  phone          String?
-  street         String?
-  zip            String?
-  city           String?
-  country        String  @default("DE")
-  customerNumber String?
-  vatId          String?
-  paymentTermsDays Int   @default(30)
+  id               String  @id @default(cuid())
+  supplierNumber   String  @unique
+  name             String
+  contactName      String?
+  email            String?
+  phone            String?
+  street           String?
+  zip              String?
+  city             String?
+  country          String  @default("DE")
+  customerNumber   String?
+  vatId            String?
+  paymentTermsDays Int     @default(30)
   /// Skonto in Prozent bei Zahlung innerhalb der Skontofrist.
   discountPercent  Decimal @default(0) @db.Decimal(5, 2)
-  notes          String?
-  active         Boolean @default(true)
+  notes            String?
+  active           Boolean @default(true)
 
   articles       Article[]
   purchaseOrders PurchaseOrder[]
@@ -1078,29 +1126,35 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String        @id @default(cuid())
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  purchaseOrderId String
-  position        Int
-  article         Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
-  articleId       String?
-  title           String
-  quantity        Decimal       @db.Decimal(12, 3)
+  id                String        @id @default(cuid())
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId   String
+  position          Int
+  article           Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId         String?
+  title             String
+  quantity          Decimal       @db.Decimal(12, 3)
   /// Bereits gelieferte Menge.
-  deliveredQuantity Decimal     @default(0) @db.Decimal(12, 3)
-  unit            String        @default("Stk")
-  unitPrice       Decimal       @default(0) @db.Decimal(12, 2)
-  vatRate         Decimal       @default(19) @db.Decimal(5, 2)
-  netAmount       Decimal       @default(0) @db.Decimal(12, 2)
+  deliveredQuantity Decimal       @default(0) @db.Decimal(12, 3)
+  unit              String        @default("Stk")
+  unitPrice         Decimal       @default(0) @db.Decimal(12, 2)
+  vatRate           Decimal       @default(19) @db.Decimal(5, 2)
+  netAmount         Decimal       @default(0) @db.Decimal(12, 2)
 
   @@unique([purchaseOrderId, position])
   @@index([articleId])
   @@map("purchase_order_items")
 }
 
-/* ------------------------------------------------------------------ */
-/* Termine, Projekte, Zeiterfassung                                    */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Termine, Projekte, Zeiterfassung
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum AppointmentType {
   MONTAGE
@@ -1121,20 +1175,20 @@ enum AppointmentStatus {
 }
 
 model Appointment {
-  id         String            @id @default(cuid())
-  title      String
-  type       AppointmentType   @default(MONTAGE)
-  status     AppointmentStatus @default(GEPLANT)
-  start      DateTime
-  end        DateTime
-  allDay     Boolean           @default(false)
-  customer   Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerId String?
-  site       Site?             @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  siteId     String?
-  order      Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderId    String?
-  location   String?
+  id          String            @id @default(cuid())
+  title       String
+  type        AppointmentType   @default(MONTAGE)
+  status      AppointmentStatus @default(GEPLANT)
+  start       DateTime
+  end         DateTime
+  allDay      Boolean           @default(false)
+  customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId  String?
+  site        Site?             @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId      String?
+  order       Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId     String?
+  location    String?
   description String?
 
   assignees Employee[] @relation("AppointmentAssignees")
@@ -1252,9 +1306,15 @@ model TimeEntry {
   @@map("time_entries")
 }
 
-/* ------------------------------------------------------------------ */
-/* Dokumente, Einstellungen, Protokoll                                 */
-/* ------------------------------------------------------------------ */
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Dokumente, Einstellungen, Protokoll
+ */
+/**
+ * ------------------------------------------------------------------
+ */
 
 enum DocumentCategory {
   ANGEBOT
@@ -1315,8 +1375,8 @@ model Document {
 
 /// Schlüssel-Wert-Ablage für Firmendaten, Textbausteine und Mahnparameter.
 model Setting {
-  key         String   @id
-  category    String   @default("allgemein")
+  key         String  @id
+  category    String  @default("allgemein")
   value       Json
   description String?
 
@@ -1324,6 +1384,23 @@ model Setting {
 
   @@index([category])
   @@map("settings")
+}
+
+/// Benannte Vorlage einer Einstellungsgruppe. Damit lässt sich ein Stand
+/// festhalten, später wieder einsetzen und einer davon als Favorit markieren.
+model SettingPreset {
+  id         String  @id @default(cuid())
+  settingKey String
+  name       String
+  favorite   Boolean @default(false)
+  value      Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([settingKey, name])
+  @@index([settingKey, favorite])
+  @@map("setting_presets")
 }
 
 /// Fortlaufende Belegnummern je Entität, optional mit Jahresreset.

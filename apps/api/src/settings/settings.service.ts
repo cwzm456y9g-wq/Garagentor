@@ -3,7 +3,7 @@ import { NUMBER_RANGE_DEFAULTS } from '@garagentor/shared';
 import { Prisma } from '@prisma/client';
 import { NumberRangeService } from '../common/numbering/number-range.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { UpdateNumberRangeDto, UpsertSettingDto } from './dto/settings.dto';
+import type { SavePresetDto, UpdateNumberRangeDto, UpsertSettingDto } from './dto/settings.dto';
 
 @Injectable()
 export class SettingsService {
@@ -29,6 +29,7 @@ export class SettingsService {
 
   /** Legt eine Einstellung an oder ersetzt ihren Wert. */
   async upsert(key: string, dto: UpsertSettingDto) {
+    this.pruefeWert(key, dto.value);
     return this.prisma.setting.upsert({
       where: { key },
       update: {
@@ -49,6 +50,127 @@ export class SettingsService {
     await this.findOne(key);
     await this.prisma.setting.delete({ where: { key } });
     return { deleted: true, key };
+  }
+
+  /* Vorlagen ----------------------------------------------------------- */
+
+  async findPresets(settingKey: string) {
+    return this.prisma.settingPreset.findMany({
+      where: { settingKey },
+      orderBy: [{ favorite: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  /**
+   * Hält einen Stand unter einem Namen fest. Ohne übergebenen Wert wird der
+   * aktuelle Inhalt der Einstellung gesichert; ein gleichnamiger Eintrag wird
+   * überschrieben, damit „nochmal speichern“ nicht scheitert.
+   */
+  async savePreset(settingKey: string, dto: SavePresetDto) {
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Die Vorlage braucht einen Namen.');
+    }
+
+    const wert = dto.value === undefined ? (await this.findOne(settingKey)).value : dto.value;
+    this.pruefeWert(settingKey, wert);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.favorite) {
+        await tx.settingPreset.updateMany({ where: { settingKey }, data: { favorite: false } });
+      }
+      return tx.settingPreset.upsert({
+        where: { settingKey_name: { settingKey, name } },
+        update: { value: wert as Prisma.InputJsonValue, favorite: dto.favorite ?? false },
+        create: {
+          settingKey,
+          name,
+          value: wert as Prisma.InputJsonValue,
+          favorite: dto.favorite ?? false,
+        },
+      });
+    });
+  }
+
+  /** Markiert eine Vorlage als Favorit; die bisherige verliert die Markierung. */
+  async markPresetFavorite(settingKey: string, id: string) {
+    const vorlage = await this.findPreset(settingKey, id);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.settingPreset.updateMany({ where: { settingKey }, data: { favorite: false } });
+      return tx.settingPreset.update({ where: { id: vorlage.id }, data: { favorite: true } });
+    });
+  }
+
+  /** Setzt eine Vorlage als aktuellen Stand der Einstellung ein. */
+  async applyPreset(settingKey: string, id: string) {
+    const vorlage = await this.findPreset(settingKey, id);
+    return this.upsert(settingKey, { value: vorlage.value });
+  }
+
+  async removePreset(settingKey: string, id: string) {
+    const vorlage = await this.findPreset(settingKey, id);
+    await this.prisma.settingPreset.delete({ where: { id: vorlage.id } });
+    return { deleted: true, id: vorlage.id };
+  }
+
+  private async findPreset(settingKey: string, id: string) {
+    const vorlage = await this.prisma.settingPreset.findUnique({ where: { id } });
+    // Der Schlüssel muss passen, sonst ließe sich über einen fremden Pfad eine
+    // Vorlage einer anderen Einstellung einsetzen.
+    if (!vorlage || vorlage.settingKey !== settingKey) {
+      throw new NotFoundException('Die Vorlage ist nicht hinterlegt.');
+    }
+    return vorlage;
+  }
+
+  /* Prüfung besonderer Einstellungen ----------------------------------- */
+
+  /** Erlaubte Bildarten für das Logo. */
+  private static readonly LOGO_TYPEN = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp'];
+
+  /** Obergrenze des Logos nach dem Dekodieren. */
+  private static readonly LOGO_MAX_BYTES = 512 * 1024;
+
+  /**
+   * Das Logo liegt als Data-URL in der Einstellung „firma“: es ist eine einzige
+   * kleine Datei, wird so von der Sicherung der Datenbank mit erfasst und lässt
+   * sich beim Erzeugen der Belege unmittelbar einbetten. Ungeprüft würde hier
+   * beliebiger Inhalt landen, deshalb die Kontrolle von Art und Größe.
+   */
+  private pruefeWert(key: string, value: unknown): void {
+    if (key !== 'firma' || value === null || typeof value !== 'object') return;
+
+    const logo = (value as { logo?: unknown }).logo;
+    if (logo === undefined || logo === null || logo === '') return;
+
+    if (typeof logo !== 'string') {
+      throw new BadRequestException('Das Logo muss als Data-URL übergeben werden.');
+    }
+
+    const treffer = /^data:([a-z0-9+/.-]+);base64,([A-Za-z0-9+/=]+)$/i.exec(logo);
+    if (!treffer) {
+      throw new BadRequestException(
+        'Das Logo muss eine Data-URL in Base64 sein, z. B. "data:image/png;base64,…".',
+      );
+    }
+
+    const [, typ, daten] = treffer;
+    if (!SettingsService.LOGO_TYPEN.includes(typ.toLowerCase())) {
+      throw new BadRequestException(
+        `Der Bildtyp "${typ}" ist nicht zugelassen. Erlaubt sind SVG, PNG, JPEG und WebP.`,
+      );
+    }
+
+    // Base64 trägt vier Zeichen je drei Byte; das Füllzeichen zählt nicht mit.
+    const bytes =
+      Math.floor((daten.length * 3) / 4) - (daten.endsWith('==') ? 2 : daten.endsWith('=') ? 1 : 0);
+    if (bytes > SettingsService.LOGO_MAX_BYTES) {
+      throw new BadRequestException(
+        `Das Logo ist ${Math.round(bytes / 1024)} kB groß; erlaubt sind ${
+          SettingsService.LOGO_MAX_BYTES / 1024
+        } kB.`,
+      );
+    }
   }
 
   /* Nummernkreise ------------------------------------------------------ */

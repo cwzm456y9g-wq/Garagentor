@@ -6,6 +6,7 @@ import type {
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from 'react';
 
 /** Klassen zusammenfügen und leere Werte auslassen. */
@@ -256,6 +257,14 @@ export function Field({ label, htmlFor, hint, error, required, children, classNa
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx('input', className)} />;
+}
+
+export function Textarea({
+  className,
+  rows = 3,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} rows={rows} className={cx('input resize-y', className)} />;
 }
 
 export function Select({

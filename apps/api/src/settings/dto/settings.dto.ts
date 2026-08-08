@@ -29,6 +29,26 @@ export class UpsertSettingDto {
   description?: string;
 }
 
+export class SavePresetDto {
+  @ApiProperty({ description: 'Name der Vorlage, z. B. "Briefkopf 2026"' })
+  @IsString()
+  @MaxLength(80)
+  name: string;
+
+  @ApiPropertyOptional({
+    description: 'Festzuhaltender Wert; ohne Angabe wird der aktuelle Stand gesichert',
+    type: Object,
+  })
+  @IsOptional()
+  @IsDefined()
+  value?: unknown;
+
+  @ApiPropertyOptional({ description: 'Gleich als Favorit markieren', default: false })
+  @IsOptional()
+  @IsBoolean()
+  favorite?: boolean;
+}
+
 export class UpdateNumberRangeDto {
   @ApiPropertyOptional({ description: 'Präfix, z. B. "RE-"' })
   @IsOptional()
