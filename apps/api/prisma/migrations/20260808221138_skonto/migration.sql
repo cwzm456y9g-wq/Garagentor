@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "invoices" ADD COLUMN     "skontoAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "skontoDays" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "skontoPercent" DECIMAL(5,2) NOT NULL DEFAULT 0;

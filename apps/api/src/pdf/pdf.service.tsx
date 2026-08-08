@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { renderToBuffer } from '@react-pdf/renderer';
+import { skontoAmount, skontoDeadline } from '@garagentor/shared';
 import { EntityType } from '@prisma/client';
 import { DocumentsService } from '../documents/documents.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -178,6 +179,25 @@ export class PdfService {
       reverseCharge,
     };
 
+    /*
+     * Der Hinweis erscheint nur, solange der Abzug überhaupt noch zu holen
+     * ist – also vor der ersten Zahlung. Auf einer teilbezahlten Rechnung wäre
+     * er irreführend: der Skonto bezieht sich auf den fristgerechten Ausgleich
+     * des ganzen Betrags, nicht auf einen Rest.
+     */
+    const skontosatz = zahl(invoice.skontoPercent);
+    const zahlbetrag = Math.round((brutto - abschlag) * 100) / 100;
+    const skontoBetrag = skontoAmount(zahlbetrag, skontosatz);
+    const skonto =
+      skontosatz > 0 && invoice.skontoDays > 0 && gezahlt === 0 && offen > 0
+        ? {
+            prozent: skontosatz,
+            betrag: skontoBetrag,
+            zahlbar: Math.round((zahlbetrag - skontoBetrag) * 100) / 100,
+            bis: skontoDeadline(invoice.date, invoice.skontoDays),
+          }
+        : null;
+
     const buffer = await renderToBuffer(
       <Rechnung
         daten={{
@@ -199,6 +219,7 @@ export class PdfService {
           steuerzeilen: this.steuerzeilen(positionen),
           positionen,
           giroCode,
+          skonto,
         }}
         optionen={optionen}
       />,

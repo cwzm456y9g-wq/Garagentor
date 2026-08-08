@@ -277,6 +277,8 @@ export interface RechnungDaten {
   positionen: BelegPosition[];
   /** Bereits erzeugter GiroCode als Data-URL. */
   giroCode?: string | null;
+  /** Skontoangabe, wenn ein Abzug eingeräumt wird. */
+  skonto?: { prozent: number; betrag: number; zahlbar: number; bis: Date | string } | null;
 }
 
 export function Rechnung({ daten, optionen }: { daten: RechnungDaten; optionen: BelegOptionen }) {
@@ -317,6 +319,15 @@ export function Rechnung({ daten, optionen }: { daten: RechnungDaten; optionen: 
         offen={daten.openAmount}
         mitSteuer={mitSteuer}
       />
+
+      {daten.skonto ? (
+        // Der Abzug gehört unter die Summe, nicht in den Fließtext: dort sucht
+        // ihn die Buchhaltung des Kunden.
+        <Text style={[stile.klein, { marginTop: mm(2) }]}>
+          Bei Zahlung bis zum {datum(daten.skonto.bis)} gewähren wir {menge(daten.skonto.prozent)} %
+          Skonto ({geld(daten.skonto.betrag)}), zahlbar dann {geld(daten.skonto.zahlbar)}.
+        </Text>
+      ) : null}
 
       <Hinweise
         // Nur wenn der Beleg tatsächlich ohne Steuer auskommt – sonst stünde

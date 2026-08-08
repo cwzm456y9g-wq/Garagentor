@@ -1,10 +1,12 @@
 'use client';
 
 import {
+  addDays,
   customerDisplayName,
   dunningLevelLabels,
   formatCurrency,
   formatDate,
+  formatNumber,
   invoiceTypeLabels,
   paymentMethodLabels,
   toIsoDate,
@@ -312,11 +314,23 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 <dt className="text-slate-600">Bezahlt</dt>
                 <dd className="tabular">{formatCurrency(data.paidAmount)}</dd>
               </div>
+              {data.skontoAmount > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-600">Skonto gewährt</dt>
+                  <dd className="tabular">− {formatCurrency(data.skontoAmount)}</dd>
+                </div>
+              )}
               <div className="flex justify-between border-t border-slate-200 pt-2">
                 <dt className="font-semibold text-slate-900">Offen</dt>
                 <dd className="tabular font-semibold text-slate-900">{formatCurrency(open)}</dd>
               </div>
             </dl>
+            {data.skontoPercent > 0 && data.skontoDays > 0 && open > 0 && (
+              <p className="mt-3 text-xs text-slate-500">
+                {formatNumber(data.skontoPercent, 2)} % Skonto bei Zahlung bis{' '}
+                {formatDate(addDays(data.date, data.skontoDays))}.
+              </p>
+            )}
             {data.dunningLevel && (
               <p className="mt-3 text-xs text-slate-500">
                 Höchste Mahnstufe: {dunningLevelLabels[data.dunningLevel]}

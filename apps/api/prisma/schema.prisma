@@ -595,6 +595,11 @@ model Invoice {
   vatTotal        Decimal       @default(0) @db.Decimal(12, 2)
   grossTotal      Decimal       @default(0) @db.Decimal(12, 2)
   paidAmount      Decimal       @default(0) @db.Decimal(12, 2)
+  /// Skontosatz in Prozent, gültig innerhalb von skontoDays ab Rechnungsdatum.
+  skontoPercent   Decimal       @default(0) @db.Decimal(5, 2)
+  skontoDays      Int           @default(0)
+  /// Tatsächlich gewährter Abzug; wird beim Ausgleich festgehalten.
+  skontoAmount    Decimal       @default(0) @db.Decimal(12, 2)
   /// Verrechnete Abschlagsrechnungen bei einer Schlussrechnung.
   deductedAmount  Decimal       @default(0) @db.Decimal(12, 2)
   sentAt          DateTime?

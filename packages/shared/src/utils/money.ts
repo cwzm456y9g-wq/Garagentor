@@ -1,4 +1,5 @@
 import { INTEREST_POINTS } from '../constants';
+import { addDays } from './dates';
 
 /**
  * Beträge werden im gesamten System als Zahl in Euro geführt und bei jeder
@@ -163,4 +164,84 @@ export function applyMargin(purchasePrice: number, marginPercent: number): numbe
 export function marginPercent(purchasePrice: number, salesPrice: number): number {
   if (salesPrice <= 0) return 0;
   return round(((salesPrice - purchasePrice) / salesPrice) * 100, 1);
+}
+
+/* Skonto ---------------------------------------------------------------- */
+
+/** Skontobetrag auf einen Bruttobetrag, kaufmännisch gerundet. */
+export function skontoAmount(payable: number, percent: number): number {
+  if (payable <= 0 || percent <= 0) return 0;
+  return round(payable * (percent / 100), 2);
+}
+
+/** Letzter Tag, an dem der Abzug noch zulässig ist. */
+export function skontoDeadline(invoiceDate: Date | string, days: number): Date {
+  return addDays(invoiceDate instanceof Date ? invoiceDate : new Date(invoiceDate), days);
+}
+
+/**
+ * Ob eine Zahlung innerhalb der Skontofrist eingegangen ist.
+ *
+ * Verglichen wird auf den Tag genau: eine Überweisung, die am letzten Tag um
+ * 23 Uhr gutgeschrieben wird, ist rechtzeitig.
+ */
+export function withinSkontoPeriod(
+  paymentDate: Date | string,
+  invoiceDate: Date | string,
+  days: number,
+): boolean {
+  if (days <= 0) return false;
+
+  const frist = skontoDeadline(invoiceDate, days);
+  frist.setHours(23, 59, 59, 999);
+
+  const eingang = paymentDate instanceof Date ? new Date(paymentDate) : new Date(paymentDate);
+  return !Number.isNaN(eingang.getTime()) && eingang.getTime() <= frist.getTime();
+}
+
+export interface SkontoAbgleich {
+  /** Der Beleg gilt mit dieser Zahlung als ausgeglichen. */
+  ausgeglichen: boolean;
+  /** Gewährter Abzug; nur gesetzt, wenn der Ausgleich über Skonto zustande kam. */
+  skonto: number;
+  /** Was danach noch aussteht. */
+  rest: number;
+}
+
+/**
+ * Gleicht eine Zahlung gegen den offenen Betrag ab.
+ *
+ * Der Kern ist die Toleranz. Kunden runden: aus 456,25 € abzüglich 2 % werden
+ * in der Überweisung gern 447,12 € statt 447,125 €, und mancher zieht den
+ * Skonto auf den vollen Euro. Ohne Toleranz bliebe die Rechnung mit ein paar
+ * Cent offen stehen, liefe in den Mahnlauf und müsste von Hand nachgebucht
+ * werden – für jeden dieser Belege.
+ *
+ * Zu großzügig darf sie nicht sein: ein Kunde, der einfach zu wenig überweist,
+ * soll weiter als offen geführt werden. Deshalb greift die Toleranz nur um den
+ * erwarteten Betrag herum, nicht als pauschaler Nachlass.
+ */
+export function abgleichMitSkonto(params: {
+  /** Noch offener Betrag vor dieser Zahlung. */
+  offen: number;
+  zahlung: number;
+  /** Zulässiger Abzug, wenn fristgerecht gezahlt wurde; sonst 0. */
+  skonto: number;
+  /** Erlaubte Abweichung in Euro. */
+  toleranz: number;
+}): SkontoAbgleich {
+  const { offen, zahlung, skonto, toleranz } = params;
+
+  // Voll bezahlt – oder innerhalb der Toleranz darüber.
+  if (zahlung >= offen - toleranz) {
+    return { ausgeglichen: true, skonto: 0, rest: round(Math.max(0, offen - zahlung)) };
+  }
+
+  // Mit Skonto bezahlt: der erwartete Betrag ist offen abzüglich Abzug.
+  const erwartet = round(offen - skonto);
+  if (skonto > 0 && Math.abs(zahlung - erwartet) <= toleranz) {
+    return { ausgeglichen: true, skonto: round(offen - zahlung), rest: 0 };
+  }
+
+  return { ausgeglichen: false, skonto: 0, rest: round(offen - zahlung) };
 }

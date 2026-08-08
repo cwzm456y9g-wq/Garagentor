@@ -102,6 +102,11 @@ async function seedSettings(): Promise<void> {
         kleinunternehmer: false,
         defaultVatRate: 19,
         defaultPaymentTermsDays: 14,
+        // Zwei Prozent binnen zehn Tagen ist im Handwerk üblich; die Toleranz
+        // fängt das Runden des Kunden beim Überweisen ab.
+        skontoPercent: 2,
+        skontoDays: 10,
+        skontoToleranz: 0.05,
         quoteValidityDays: 30,
         quoteIntroText:
           'vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:',

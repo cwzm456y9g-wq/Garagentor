@@ -503,6 +503,49 @@ function BelegeKarte({ geladen, neuLaden }: { geladen: DocumentSettings; neuLade
           </Field>
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Skonto in Prozent" htmlFor="belege-skonto" hint="0 lässt den Abzug weg.">
+            <Input
+              id="belege-skonto"
+              type="number"
+              step="0.5"
+              min={0}
+              max={20}
+              value={wert.skontoPercent ?? 0}
+              onChange={(event) =>
+                setEntwurf({ ...wert, skontoPercent: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field label="Skontofrist in Tagen" htmlFor="belege-skonto-tage">
+            <Input
+              id="belege-skonto-tage"
+              type="number"
+              min={0}
+              max={90}
+              value={wert.skontoDays ?? 0}
+              onChange={(event) => setEntwurf({ ...wert, skontoDays: Number(event.target.value) })}
+            />
+          </Field>
+          <Field
+            label="Toleranz beim Abgleich"
+            htmlFor="belege-toleranz"
+            hint="In Euro. Deckt das Runden des Kunden ab."
+          >
+            <Input
+              id="belege-toleranz"
+              type="number"
+              step="0.01"
+              min={0}
+              max={5}
+              value={wert.skontoToleranz ?? 0.05}
+              onChange={(event) =>
+                setEntwurf({ ...wert, skontoToleranz: Number(event.target.value) })
+              }
+            />
+          </Field>
+        </div>
+
         <div className="grid gap-4">
           <Field label="Einleitungstext im Angebot" htmlFor="belege-intro">
             <Textarea

@@ -265,6 +265,10 @@ export interface Invoice {
   deductedAmount: number;
   payableAmount?: number;
   openAmount?: number;
+  skontoPercent: number;
+  skontoDays: number;
+  /** Tatsächlich gewährter Abzug, sobald die Rechnung ausgeglichen ist. */
+  skontoAmount: number;
   dunningLevel: DunningLevel | null;
   customerId: string;
   customer?: CustomerRef & { paymentTermsDays?: number };
@@ -771,6 +775,11 @@ export interface DocumentSettings {
   defaultVatRate?: number;
   defaultPaymentTermsDays?: number;
   quoteValidityDays?: number;
+  /** Skontosatz und Frist für neue Rechnungen. */
+  skontoPercent?: number;
+  skontoDays?: number;
+  /** Erlaubte Abweichung beim Zahlungsabgleich, in Euro. */
+  skontoToleranz?: number;
   quoteIntroText?: string;
   quoteOutroText?: string;
   invoiceOutroText?: string;

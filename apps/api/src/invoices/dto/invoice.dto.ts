@@ -7,6 +7,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -72,6 +73,22 @@ export class CreateInvoiceDto {
   @Min(0)
   @Max(100)
   discountPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Skontosatz in Prozent; ohne Angabe aus den Einstellungen' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(20)
+  skontoPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Skontofrist in Tagen ab Rechnungsdatum' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(90)
+  skontoDays?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

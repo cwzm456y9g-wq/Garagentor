@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { addDays, round, type Paginated } from '@garagentor/shared';
+import {
+  abgleichMitSkonto,
+  addDays,
+  round,
+  skontoAmount,
+  withinSkontoPeriod,
+  type Paginated,
+} from '@garagentor/shared';
 import { InvoiceStatus, InvoiceType, Prisma, type Invoice } from '@prisma/client';
 import { prepareLineItems, withoutOptionalFlag } from '../common/dto/line-item.dto';
 import { orderBy, paginate } from '../common/dto/pagination.dto';
@@ -115,6 +122,7 @@ export class InvoicesService {
 
     const date = dto.date ? new Date(dto.date) : new Date();
     const dueDate = dto.dueDate ? new Date(dto.dueDate) : addDays(date, customer.paymentTermsDays);
+    const vorgabe = await this.skontoVorgabe();
     if (dueDate < date) {
       throw new BadRequestException(
         'Das Fälligkeitsdatum darf nicht vor dem Rechnungsdatum liegen.',
@@ -139,6 +147,8 @@ export class InvoicesService {
           outroText: dto.outroText ?? null,
           notes: dto.notes ?? null,
           discountPercent: dto.discountPercent ?? 0,
+          skontoPercent: dto.skontoPercent ?? vorgabe.skontoPercent,
+          skontoDays: dto.skontoDays ?? vorgabe.skontoDays,
           netTotal: totals.netAmount,
           vatTotal: totals.vatAmount,
           grossTotal: totals.grossAmount,
@@ -203,6 +213,8 @@ export class InvoicesService {
           ...(dto.outroText === undefined ? {} : { outroText: dto.outroText }),
           ...(dto.notes === undefined ? {} : { notes: dto.notes }),
           ...(dto.type === undefined ? {} : { type: dto.type }),
+          ...(dto.skontoPercent === undefined ? {} : { skontoPercent: dto.skontoPercent }),
+          ...(dto.skontoDays === undefined ? {} : { skontoDays: dto.skontoDays }),
           discountPercent,
           netTotal: totals.netAmount,
           vatTotal: totals.vatAmount,
@@ -276,6 +288,26 @@ export class InvoicesService {
       );
     }
 
+    const zahlungsdatum = dto.date ? new Date(dto.date) : new Date();
+    const toleranz = await this.skontoToleranz();
+
+    // Skonto steht nur zu, wenn fristgerecht gezahlt wurde. Außerhalb der
+    // Frist geht der Abgleich mit null Abzug hinein und wertet eine geminderte
+    // Zahlung damit als Unterzahlung.
+    const skontosatz = invoice.skontoPercent.toNumber();
+    const skontotage = invoice.skontoDays;
+    const zulaessig =
+      skontosatz > 0 && withinSkontoPeriod(zahlungsdatum, invoice.date, skontotage)
+        ? skontoAmount(payableAmountOf(invoice), skontosatz)
+        : 0;
+
+    const abgleich = abgleichMitSkonto({
+      offen: open,
+      zahlung: dto.amount,
+      skonto: zulaessig,
+      toleranz,
+    });
+
     return this.prisma.$transaction(async (tx) => {
       await tx.payment.create({
         data: {
@@ -289,12 +321,14 @@ export class InvoicesService {
       });
 
       const paidAmount = round(invoice.paidAmount.toNumber() + dto.amount);
-      const fullyPaid = paidAmount >= this.payableAmount(invoice) - 0.01;
+      const fullyPaid = abgleich.ausgeglichen;
+      const skonto = round(invoice.skontoAmount.toNumber() + abgleich.skonto);
 
       const updated = await tx.invoice.update({
         where: { id },
         data: {
           paidAmount,
+          skontoAmount: skonto,
           status: fullyPaid ? InvoiceStatus.BEZAHLT : InvoiceStatus.TEILBEZAHLT,
           paidAt: fullyPaid ? new Date() : null,
         },
@@ -305,7 +339,14 @@ export class InvoicesService {
         tx,
         'ZAHLUNG_GEBUCHT',
         { entityType: 'INVOICE', entityId: id, label: invoice.invoiceNumber },
-        { betrag: dto.amount, gezahltGesamt: paidAmount, vollstaendig: fullyPaid },
+        {
+          betrag: dto.amount,
+          gezahltGesamt: paidAmount,
+          vollstaendig: fullyPaid,
+          // Ein gewährter Abzug ist ein Ertragsverzicht und gehört ins
+          // Protokoll, nicht nur in die Summenzeile.
+          ...(abgleich.skonto > 0 ? { skonto: abgleich.skonto } : {}),
+        },
       );
 
       // Mit dem vollständigen Ausgleich sind offene Mahnungen erledigt.
@@ -458,6 +499,28 @@ export class InvoicesService {
       data: { status: InvoiceStatus.UEBERFAELLIG },
     });
     return result.count;
+  }
+
+  /**
+   * Erlaubte Abweichung beim Zahlungsabgleich, in Euro.
+   *
+   * Voreingestellt fünf Cent: das deckt das Runden des Kunden ab, ohne dass
+   * eine echte Unterzahlung durchrutscht.
+   */
+  /** Skontovorgaben für neue Rechnungen. */
+  private async skontoVorgabe(): Promise<{ skontoPercent: number; skontoDays: number }> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'belege' } });
+    const wert = (setting?.value as { skontoPercent?: number; skontoDays?: number } | null) ?? {};
+    return {
+      skontoPercent: typeof wert.skontoPercent === 'number' ? wert.skontoPercent : 0,
+      skontoDays: typeof wert.skontoDays === 'number' ? wert.skontoDays : 0,
+    };
+  }
+
+  private async skontoToleranz(): Promise<number> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'belege' } });
+    const wert = (setting?.value as { skontoToleranz?: number } | null)?.skontoToleranz;
+    return typeof wert === 'number' && wert >= 0 ? wert : 0.05;
   }
 
   /** Zu zahlender Betrag abzüglich verrechneter Abschläge. */
