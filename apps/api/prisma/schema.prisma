@@ -653,22 +653,25 @@ model Payment {
 }
 
 model Dunning {
-  id          String        @id @default(cuid())
-  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId   String
-  level       DunningLevel
-  status      DunningStatus @default(ENTWURF)
-  date        DateTime      @default(now())
+  id              String        @id @default(cuid())
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  level           DunningLevel
+  status          DunningStatus @default(ENTWURF)
+  date            DateTime      @default(now())
   /// Neue Zahlungsfrist aus der Mahnung.
-  dueDate     DateTime
+  dueDate         DateTime
   /// Offener Rechnungsbetrag zum Zeitpunkt der Mahnung.
-  openAmount  Decimal       @db.Decimal(12, 2)
-  fee         Decimal       @default(0) @db.Decimal(12, 2)
-  interest    Decimal       @default(0) @db.Decimal(12, 2)
-  totalAmount Decimal       @db.Decimal(12, 2)
-  daysOverdue Int
-  sentAt      DateTime?
-  notes       String?
+  openAmount      Decimal       @db.Decimal(12, 2)
+  fee             Decimal       @default(0) @db.Decimal(12, 2)
+  interest        Decimal       @default(0) @db.Decimal(12, 2)
+  /// Angewandter Verzugszinssatz. Wird mitgeschrieben, weil der Basiszinssatz
+  /// halbjährlich wechselt und die Mahnung ihren Satz belegen muss.
+  interestPercent Decimal       @default(0) @db.Decimal(5, 2)
+  totalAmount     Decimal       @db.Decimal(12, 2)
+  daysOverdue     Int
+  sentAt          DateTime?
+  notes           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

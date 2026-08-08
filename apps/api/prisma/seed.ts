@@ -6,7 +6,9 @@
 import {
   addMonths,
   checkCatalogFor,
+  DEFAULT_BASE_RATE,
   DEFAULT_MAINTENANCE_INTERVAL_MONTHS,
+  INTEREST_POINTS,
   type OperationMode,
 } from '@garagentor/shared';
 import { PrismaClient } from '@prisma/client';
@@ -112,11 +114,20 @@ async function seedSettings(): Promise<void> {
       category: 'mahnwesen',
       description: 'Fristen, Gebühren und Verzugszinsen des Mahnlaufs',
       value: {
+        // Der Basiszinssatz nach § 247 BGB wird zum 1. Januar und 1. Juli neu
+        // bekanntgegeben und muss gepflegt werden; die Anwendung weist darauf
+        // hin, sobald ein Termin verstrichen ist.
+        basiszinssatz: DEFAULT_BASE_RATE.percent,
+        basiszinssatzGueltigAb: DEFAULT_BASE_RATE.validFrom,
+        // Aufschlag nach § 288 BGB: fünf Punkte bei Verbrauchern, neun bei
+        // Entgeltforderungen ohne Verbraucherbeteiligung.
+        zinspunkteVerbraucher: INTEREST_POINTS.VERBRAUCHER,
+        zinspunkteUnternehmen: INTEREST_POINTS.UNTERNEHMEN,
         stufen: [
-          { level: 'ZAHLUNGSERINNERUNG', daysOverdue: 3, fee: 0, interestPercent: 0, graceDays: 7 },
-          { level: 'MAHNUNG_1', daysOverdue: 14, fee: 5, interestPercent: 9, graceDays: 7 },
-          { level: 'MAHNUNG_2', daysOverdue: 28, fee: 10, interestPercent: 9, graceDays: 7 },
-          { level: 'LETZTE_MAHNUNG', daysOverdue: 42, fee: 15, interestPercent: 9, graceDays: 5 },
+          { level: 'ZAHLUNGSERINNERUNG', daysOverdue: 3, fee: 0, zinsen: false, graceDays: 7 },
+          { level: 'MAHNUNG_1', daysOverdue: 14, fee: 5, zinsen: true, graceDays: 7 },
+          { level: 'MAHNUNG_2', daysOverdue: 28, fee: 10, zinsen: true, graceDays: 7 },
+          { level: 'LETZTE_MAHNUNG', daysOverdue: 42, fee: 15, zinsen: true, graceDays: 5 },
         ],
       },
     },

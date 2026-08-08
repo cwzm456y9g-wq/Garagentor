@@ -1,8 +1,10 @@
+import { INTEREST_POINTS } from '../constants';
+
 /**
  * Beträge werden im gesamten System als Zahl in Euro geführt und bei jeder
  * Berechnung kaufmännisch auf zwei Nachkommastellen gerundet. Die Funktionen
- * hier sind bewusst frei von Abhängigkeiten, damit API und Web exakt dieselben
- * Summen ermitteln.
+ * hier kommen ohne Abhängigkeiten außerhalb dieses Pakets aus, damit API und
+ * Web exakt dieselben Summen ermitteln.
  */
 
 /**
@@ -108,12 +110,48 @@ export function calculateDocumentTotals(
 }
 
 /**
- * Verzugszinsen nach § 288 BGB: Basiszinssatz zzgl. 5 (Verbraucher) bzw.
- * 9 Prozentpunkten (Rechtsgeschäfte ohne Verbraucherbeteiligung).
+ * Verzugszinsen auf einen Betrag für die Dauer des Verzugs.
+ * Den Satz liefert `interestRate()`.
  */
 export function calculateInterest(amount: number, annualPercent: number, days: number): number {
   if (amount <= 0 || annualPercent <= 0 || days <= 0) return 0;
   return round((amount * (annualPercent / 100) * days) / 365);
+}
+
+/**
+ * Verzugszinssatz nach § 288 BGB: Basiszinssatz zzgl. fünf Prozentpunkte,
+ * bei Entgeltforderungen ohne Verbraucherbeteiligung zzgl. neun.
+ *
+ * Ein negativer Basiszinssatz – wie zwischen 2016 und 2022 – senkt den Satz
+ * tatsächlich; unter null fällt er dabei nicht.
+ */
+export function interestRate(
+  baseRatePercent: number,
+  isConsumer: boolean,
+  points: { VERBRAUCHER: number; UNTERNEHMEN: number } = INTEREST_POINTS,
+): number {
+  const aufschlag = isConsumer ? points.VERBRAUCHER : points.UNTERNEHMEN;
+  return round(Math.max(0, baseRatePercent + aufschlag), 2);
+}
+
+/**
+ * Letzter Termin, zu dem der Basiszinssatz neu bekanntgegeben wurde: der
+ * 1. Januar oder 1. Juli vor dem Stichtag.
+ */
+export function lastBaseRateChange(reference: Date = new Date()): Date {
+  const jahr = reference.getUTCFullYear();
+  const juli = new Date(Date.UTC(jahr, 6, 1));
+  return reference >= juli ? juli : new Date(Date.UTC(jahr, 0, 1));
+}
+
+/**
+ * Ob der hinterlegte Basiszinssatz überholt ist, weil seither ein
+ * Bekanntgabetermin verstrichen ist.
+ */
+export function baseRateOutdated(validFrom: string | Date, reference: Date = new Date()): boolean {
+  const ab = validFrom instanceof Date ? validFrom : new Date(validFrom);
+  if (Number.isNaN(ab.getTime())) return true;
+  return ab < lastBaseRateChange(reference);
 }
 
 /** Aufschlag in Prozent auf einen Einkaufspreis. */

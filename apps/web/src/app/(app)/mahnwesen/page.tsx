@@ -5,6 +5,7 @@ import {
   dunningLevelLabels,
   formatCurrency,
   formatDate,
+  formatNumber,
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -125,6 +126,11 @@ export default function DunningPage() {
                     <td className="tabular text-right text-slate-600">{formatCurrency(row.fee)}</td>
                     <td className="tabular text-right text-slate-600">
                       {formatCurrency(row.interest)}
+                      {row.interestPercent > 0 && (
+                        <span className="block text-xs text-slate-400">
+                          {formatNumber(row.interestPercent, 2)} %
+                        </span>
+                      )}
                     </td>
                     <td className="tabular text-right font-semibold">
                       {formatCurrency(row.totalAmount)}

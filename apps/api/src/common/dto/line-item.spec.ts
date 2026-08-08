@@ -1,4 +1,10 @@
-import { calculateInterest, calculateDocumentTotals, round } from '@garagentor/shared';
+import {
+  baseRateOutdated,
+  calculateDocumentTotals,
+  calculateInterest,
+  interestRate,
+  round,
+} from '@garagentor/shared';
 import { LineItemType } from '@prisma/client';
 import { prepareLineItems, withoutOptionalFlag, type LineItemDto } from './line-item.dto';
 
@@ -123,6 +129,51 @@ describe('Belegrechnung', () => {
       expect(calculateInterest(1000, 9, 0)).toBe(0);
       expect(calculateInterest(1000, 0, 30)).toBe(0);
       expect(calculateInterest(0, 9, 30)).toBe(0);
+    });
+  });
+
+  describe('interestRate', () => {
+    it('setzt bei Verbrauchern fünf Punkte auf den Basiszinssatz', () => {
+      expect(interestRate(1.27, true)).toBe(6.27);
+    });
+
+    it('setzt bei Unternehmen neun Punkte auf den Basiszinssatz', () => {
+      expect(interestRate(1.27, false)).toBe(10.27);
+    });
+
+    it('verlangt einem Verbraucher weniger ab als einem Unternehmen', () => {
+      expect(interestRate(2.5, true)).toBeLessThan(interestRate(2.5, false));
+    });
+
+    it('senkt den Satz bei negativem Basiszinssatz, aber nicht unter null', () => {
+      // So lag der Basiszinssatz zwischen 2016 und 2022.
+      expect(interestRate(-0.88, true)).toBe(4.12);
+      expect(interestRate(-20, true)).toBe(0);
+    });
+
+    it('nimmt abweichende Zinspunkte aus den Einstellungen an', () => {
+      expect(interestRate(1, true, { VERBRAUCHER: 4, UNTERNEHMEN: 8 })).toBe(5);
+      expect(interestRate(1, false, { VERBRAUCHER: 4, UNTERNEHMEN: 8 })).toBe(9);
+    });
+  });
+
+  describe('baseRateOutdated', () => {
+    it('erkennt einen Satz als überholt, sobald ein Bekanntgabetermin verstrich', () => {
+      // Der 1. Juli liegt zwischen Hinterlegung und Stichtag.
+      expect(baseRateOutdated('2025-01-01', new Date('2025-08-15'))).toBe(true);
+    });
+
+    it('lässt den aktuellen Satz unangetastet', () => {
+      expect(baseRateOutdated('2025-07-01', new Date('2025-08-15'))).toBe(false);
+      expect(baseRateOutdated('2025-01-01', new Date('2025-06-30'))).toBe(false);
+    });
+
+    it('gilt am Bekanntgabetag selbst noch als aktuell', () => {
+      expect(baseRateOutdated('2025-07-01', new Date('2025-07-01'))).toBe(false);
+    });
+
+    it('behandelt ein unbrauchbares Datum als überholt', () => {
+      expect(baseRateOutdated('keine Angabe')).toBe(true);
     });
   });
 });

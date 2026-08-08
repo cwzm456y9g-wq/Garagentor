@@ -14,12 +14,14 @@ import {
   Table,
   Textarea,
 } from '@/components/ui';
+import { baseRateOutdated, DEFAULT_BASE_RATE, interestRate } from '@garagentor/shared';
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
 import type {
   CompanySettings,
   DocumentSettings,
   DunningLevelSetting,
+  DunningSettings,
   InspectionSettings,
   NumberRange,
   Setting,
@@ -82,7 +84,7 @@ export default function SettingsPage() {
             neuLaden={settings.reload}
           />
           <MahnwesenKarte
-            geladen={wertVon<{ stufen?: DunningLevelSetting[] }>('mahnwesen')?.stufen ?? []}
+            geladen={wertVon<DunningSettings>('mahnwesen') ?? {}}
             neuLaden={settings.reload}
           />
           <PruefungKarte
@@ -475,23 +477,29 @@ function BelegeKarte({ geladen, neuLaden }: { geladen: DocumentSettings; neuLade
 
 /* Mahnstufen ----------------------------------------------------------- */
 
-function MahnwesenKarte({
-  geladen,
-  neuLaden,
-}: {
-  geladen: DunningLevelSetting[];
-  neuLaden: () => void;
-}) {
-  const [entwurf, setEntwurf] = useState<DunningLevelSetting[] | null>(null);
+function MahnwesenKarte({ geladen, neuLaden }: { geladen: DunningSettings; neuLaden: () => void }) {
+  const [entwurf, setEntwurf] = useState<DunningSettings | null>(null);
   const wert = entwurf ?? geladen;
   const geaendert = entwurf !== null && JSON.stringify(entwurf) !== JSON.stringify(geladen);
 
-  const speichern = useAction((stufen: DunningLevelSetting[]) =>
-    api.put('/settings/mahnwesen', { value: { stufen }, category: 'mahnwesen' }),
+  const speichern = useAction((body: DunningSettings) =>
+    api.put('/settings/mahnwesen', { value: body, category: 'mahnwesen' }),
   );
 
-  const setzen = (index: number, feld: keyof DunningLevelSetting, neu: number) =>
-    setEntwurf(wert.map((stufe, i) => (i === index ? { ...stufe, [feld]: neu } : stufe)));
+  const basiszinssatz = wert.basiszinssatz ?? DEFAULT_BASE_RATE.percent;
+  const gueltigAb = wert.basiszinssatzGueltigAb ?? DEFAULT_BASE_RATE.validFrom;
+  const veraltet = baseRateOutdated(gueltigAb);
+  const punkte = {
+    VERBRAUCHER: wert.zinspunkteVerbraucher ?? 5,
+    UNTERNEHMEN: wert.zinspunkteUnternehmen ?? 9,
+  };
+  const stufen = wert.stufen ?? [];
+
+  const setzen = (index: number, feld: keyof DunningLevelSetting, neu: number | boolean) =>
+    setEntwurf({
+      ...wert,
+      stufen: stufen.map((stufe, i) => (i === index ? { ...stufe, [feld]: neu } : stufe)),
+    });
 
   return (
     <Card
@@ -519,7 +527,85 @@ function MahnwesenKarte({
         </div>
       )}
 
-      {wert.length === 0 ? (
+      <div className="card-body space-y-4 border-b border-slate-200">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Field
+            label="Basiszinssatz in Prozent"
+            htmlFor="mahn-basis"
+            hint="Nach § 247 BGB, von der Bundesbank bekanntgegeben."
+          >
+            <Input
+              id="mahn-basis"
+              type="number"
+              step={0.01}
+              min={-5}
+              max={20}
+              value={basiszinssatz}
+              onChange={(event) =>
+                setEntwurf({ ...wert, basiszinssatz: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field label="Gültig ab" htmlFor="mahn-gueltig" hint="1. Januar oder 1. Juli.">
+            <Input
+              id="mahn-gueltig"
+              type="date"
+              value={gueltigAb.slice(0, 10)}
+              onChange={(event) =>
+                setEntwurf({ ...wert, basiszinssatzGueltigAb: event.target.value })
+              }
+            />
+          </Field>
+          <Field label="Punkte bei Verbrauchern" htmlFor="mahn-punkte-v" hint="§ 288 Abs. 1 BGB.">
+            <Input
+              id="mahn-punkte-v"
+              type="number"
+              step={0.5}
+              min={0}
+              max={20}
+              value={punkte.VERBRAUCHER}
+              onChange={(event) =>
+                setEntwurf({ ...wert, zinspunkteVerbraucher: Number(event.target.value) })
+              }
+            />
+          </Field>
+          <Field label="Punkte bei Unternehmen" htmlFor="mahn-punkte-u" hint="§ 288 Abs. 2 BGB.">
+            <Input
+              id="mahn-punkte-u"
+              type="number"
+              step={0.5}
+              min={0}
+              max={20}
+              value={punkte.UNTERNEHMEN}
+              onChange={(event) =>
+                setEntwurf({ ...wert, zinspunkteUnternehmen: Number(event.target.value) })
+              }
+            />
+          </Field>
+        </div>
+
+        <div className="rounded-md bg-slate-50 px-4 py-3 text-sm">
+          Daraus ergibt sich:{' '}
+          <strong className="tabular">
+            {interestRate(basiszinssatz, true, punkte).toLocaleString('de-DE')} %
+          </strong>{' '}
+          bei Privatkunden,{' '}
+          <strong className="tabular">
+            {interestRate(basiszinssatz, false, punkte).toLocaleString('de-DE')} %
+          </strong>{' '}
+          bei Gewerbe, öffentlichen Auftraggebern und Hausverwaltungen.
+        </div>
+
+        {veraltet && (
+          <p className="rounded-md bg-bernstein-50 px-4 py-3 text-sm text-bernstein-800">
+            <strong>Der Basiszinssatz ist überholt.</strong> Seit dem hinterlegten Datum ist ein
+            Bekanntgabetermin verstrichen. Den aktuellen Wert veröffentlicht die Deutsche Bundesbank
+            zum 1. Januar und 1. Juli.
+          </p>
+        )}
+      </div>
+
+      {stufen.length === 0 ? (
         <p className="px-5 py-4 text-sm text-slate-500">Es gelten die Vorgabewerte.</p>
       ) : (
         <Table>
@@ -528,37 +614,48 @@ function MahnwesenKarte({
               <th>Stufe</th>
               <th className="text-right">ab Verzug (Tage)</th>
               <th className="text-right">Gebühr (€)</th>
-              <th className="text-right">Zinssatz (%)</th>
               <th className="text-right">Nachfrist (Tage)</th>
+              <th>Verzugszinsen</th>
             </tr>
           </thead>
           <tbody>
-            {wert.map((stufe, index) => (
+            {stufen.map((stufe, index) => (
               <tr key={stufe.level}>
                 <td className="font-medium text-slate-900">
                   {DUNNING_LABELS[stufe.level] ?? stufe.level}
                 </td>
                 {(
                   [
-                    ['daysOverdue', 0, 365],
-                    ['fee', 0, 999],
-                    ['interestPercent', 0, 30],
-                    ['graceDays', 0, 90],
-                  ] as Array<[keyof DunningLevelSetting, number, number]>
-                ).map(([feld, min, max]) => (
+                    ['daysOverdue', 0, 365, 1],
+                    ['fee', 0, 999, 0.5],
+                    ['graceDays', 0, 90, 1],
+                  ] as Array<[keyof DunningLevelSetting, number, number, number]>
+                ).map(([feld, min, max, step]) => (
                   <td key={feld} className="text-right">
                     <Input
                       type="number"
                       min={min}
                       max={max}
-                      step={feld === 'fee' || feld === 'interestPercent' ? 0.5 : 1}
-                      value={stufe[feld]}
+                      step={step}
+                      value={Number(stufe[feld] ?? 0)}
                       onChange={(event) => setzen(index, feld, Number(event.target.value))}
                       className="w-24 text-right"
                       aria-label={`${feld} ${stufe.level}`}
                     />
                   </td>
                 ))}
+                <td>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={stufe.zinsen ?? (stufe.interestPercent ?? 0) > 0}
+                      onChange={(event) => setzen(index, 'zinsen', event.target.checked)}
+                      className="rounded border-slate-300"
+                      aria-label={`Verzugszinsen ${stufe.level}`}
+                    />
+                    berechnen
+                  </label>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -566,8 +663,9 @@ function MahnwesenKarte({
       )}
 
       <p className="border-t border-slate-200 px-5 py-3 text-xs text-slate-500">
-        Der Zinssatz nach § 288 BGB liegt bei Verbrauchern fünf, bei Unternehmen neun Prozentpunkte
-        über dem Basiszinssatz. Wird derzeit einheitlich angewandt.
+        Der Satz ergibt sich aus dem Basiszinssatz und der Kundenart, nicht aus der Stufe. Die Stufe
+        entscheidet nur, ob überhaupt Zinsen anfallen. Der angewandte Satz wird zu jeder Mahnung
+        mitgeschrieben.
       </p>
 
       <VorlagenLeiste settingKey="mahnwesen" bezeichnung="Mahnstufen" neuLaden={neuLaden} />

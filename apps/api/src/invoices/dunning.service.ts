@@ -3,10 +3,13 @@ import {
   addDays,
   calculateInterest,
   daysOverdue as daysOverdueOf,
+  DEFAULT_BASE_RATE,
   DUNNING_DEFAULTS,
+  INTEREST_POINTS,
+  interestRate,
   round,
 } from '@garagentor/shared';
-import { DunningLevel, DunningStatus, InvoiceStatus, Prisma } from '@prisma/client';
+import { CustomerType, DunningLevel, DunningStatus, InvoiceStatus, Prisma } from '@prisma/client';
 import { paginate } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { DunningQueryDto } from './dto/dunning.dto';
@@ -18,9 +21,20 @@ interface DunningStage {
   /** Ab wie vielen Tagen Verzug die Stufe greift. */
   daysOverdue: number;
   fee: number;
-  interestPercent: number;
+  /**
+   * Ob auf dieser Stufe Verzugszinsen erhoben werden. Der Satz selbst ergibt
+   * sich aus dem Basiszinssatz und der Kundenart, nicht aus der Stufe.
+   */
+  zinsen: boolean;
   /** Neue Zahlungsfrist in Tagen. */
   graceDays: number;
+}
+
+/** Zinsvorgaben aus den Einstellungen. */
+interface InterestConfig {
+  baseRatePercent: number;
+  validFrom: string;
+  points: { VERBRAUCHER: number; UNTERNEHMEN: number };
 }
 
 const LEVEL_ORDER: DunningLevel[] = [
@@ -78,6 +92,7 @@ export class DunningService {
    */
   async preview(reference = new Date()) {
     const stages = await this.stages();
+    const interest = await this.interestConfig();
 
     const invoices = await this.prisma.invoice.findMany({
       where: { status: { in: OPEN_STATUSES }, dueDate: { lt: reference } },
@@ -89,6 +104,8 @@ export class DunningService {
             companyName: true,
             firstName: true,
             lastName: true,
+            // Entscheidet über die Zinspunkte nach § 288 BGB.
+            type: true,
           },
         },
         dunnings: { orderBy: { date: 'desc' } },
@@ -108,7 +125,7 @@ export class DunningService {
       const last = invoice.dunnings.find((dunning) => dunning.status !== DunningStatus.ABGEBROCHEN);
       if (last && last.dueDate > reference) continue;
 
-      candidates.push(this.buildDunning(invoice, open, stage, reference));
+      candidates.push(this.buildDunning(invoice, open, stage, reference, interest));
     }
 
     return candidates;
@@ -131,6 +148,7 @@ export class DunningService {
               openAmount: candidate.openAmount,
               fee: candidate.fee,
               interest: candidate.interest,
+              interestPercent: candidate.interestPercent,
               totalAmount: candidate.totalAmount,
               daysOverdue: candidate.daysOverdue,
             },
@@ -174,7 +192,8 @@ export class DunningService {
       throw new ConflictException('Nur offene Rechnungen können gemahnt werden.');
     }
 
-    const open = round(invoice.grossTotal.toNumber() - invoice.paidAmount.toNumber());
+    // Über openAmountOf, damit ein verrechneter Abschlag abgezogen bleibt.
+    const open = openAmountOf(invoice);
     if (open <= 0) {
       throw new ConflictException('Die Rechnung weist keinen offenen Betrag auf.');
     }
@@ -186,7 +205,7 @@ export class DunningService {
           level,
           daysOverdue: 0,
           fee: 0,
-          interestPercent: 9,
+          zinsen: true,
           graceDays: 7,
         })
       : this.nextStage(stages, invoice.dunningLevel, invoice.dueDate, now);
@@ -195,7 +214,8 @@ export class DunningService {
       throw new ConflictException('Für diese Rechnung ist derzeit keine Mahnstufe fällig.');
     }
 
-    const candidate = this.buildDunning(invoice, open, stage, now);
+    const interest = await this.interestConfig();
+    const candidate = this.buildDunning(invoice, open, stage, now, interest);
 
     return this.prisma.$transaction(async (tx) => {
       const dunning = await tx.dunning.create({
@@ -207,6 +227,7 @@ export class DunningService {
           openAmount: candidate.openAmount,
           fee: candidate.fee,
           interest: candidate.interest,
+          interestPercent: candidate.interestPercent,
           totalAmount: candidate.totalAmount,
           daysOverdue: candidate.daysOverdue,
         },
@@ -249,13 +270,42 @@ export class DunningService {
 
   /** Mahnstufen aus den Einstellungen, sonst die Vorgaben aus @garagentor/shared. */
   private async stages(): Promise<DunningStage[]> {
-    const setting = await this.prisma.setting.findUnique({ where: { key: 'mahnwesen' } });
-    const configured = (setting?.value as { stufen?: DunningStage[] } | null)?.stufen;
+    const configured = (await this.dunningSetting())?.stufen;
 
     const stages = configured?.length
-      ? configured
+      ? // Ältere Einstellungen führten je Stufe einen festen Zinssatz. Daraus
+        // ergibt sich, ob überhaupt Zinsen anfallen; die Höhe kommt jetzt aus
+        // dem Basiszinssatz.
+        configured.map((stufe) => ({
+          ...stufe,
+          zinsen: stufe.zinsen ?? (stufe.interestPercent ?? 0) > 0,
+        }))
       : (DUNNING_DEFAULTS as unknown as DunningStage[]);
     return [...stages].sort((a, b) => a.daysOverdue - b.daysOverdue);
+  }
+
+  private async dunningSetting(): Promise<{
+    stufen?: Array<DunningStage & { interestPercent?: number }>;
+    basiszinssatz?: number;
+    basiszinssatzGueltigAb?: string;
+    zinspunkteVerbraucher?: number;
+    zinspunkteUnternehmen?: number;
+  } | null> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'mahnwesen' } });
+    return (setting?.value as Awaited<ReturnType<DunningService['dunningSetting']>>) ?? null;
+  }
+
+  /** Basiszinssatz und Zinspunkte aus den Einstellungen. */
+  private async interestConfig(): Promise<InterestConfig> {
+    const setting = await this.dunningSetting();
+    return {
+      baseRatePercent: setting?.basiszinssatz ?? DEFAULT_BASE_RATE.percent,
+      validFrom: setting?.basiszinssatzGueltigAb ?? DEFAULT_BASE_RATE.validFrom,
+      points: {
+        VERBRAUCHER: setting?.zinspunkteVerbraucher ?? INTEREST_POINTS.VERBRAUCHER,
+        UNTERNEHMEN: setting?.zinspunkteUnternehmen ?? INTEREST_POINTS.UNTERNEHMEN,
+      },
+    };
   }
 
   /** Nächste Stufe nach der bereits erreichten, sofern der Verzug ausreicht. */
@@ -280,14 +330,27 @@ export class DunningService {
   }
 
   private buildDunning(
-    invoice: { id: string; invoiceNumber: string; dueDate: Date; customer?: unknown },
+    invoice: {
+      id: string;
+      invoiceNumber: string;
+      dueDate: Date;
+      customer?: { type?: CustomerType | null } | null;
+    },
     openAmount: number,
     stage: DunningStage,
     reference: Date,
+    interest: InterestConfig,
   ) {
     const overdue = daysOverdueOf(invoice.dueDate, reference);
-    // Verzugszinsen nach § 288 BGB auf den offenen Betrag.
-    const interest = calculateInterest(openAmount, stage.interestPercent, overdue);
+
+    // Nach § 288 BGB gelten neun Prozentpunkte nur bei Entgeltforderungen ohne
+    // Verbraucherbeteiligung; Privatkunden schulden fünf. Öffentliche
+    // Auftraggeber und Hausverwaltungen sind keine Verbraucher.
+    const istVerbraucher = invoice.customer?.type === CustomerType.PRIVAT;
+    const zinssatz = stage.zinsen
+      ? interestRate(interest.baseRatePercent, istVerbraucher, interest.points)
+      : 0;
+    const zinsen = calculateInterest(openAmount, zinssatz, overdue);
 
     return {
       invoiceId: invoice.id,
@@ -296,8 +359,11 @@ export class DunningService {
       level: stage.level,
       openAmount,
       fee: stage.fee,
-      interest,
-      totalAmount: round(openAmount + stage.fee + interest),
+      // Der angewandte Satz wird mitgeschrieben: der Basiszinssatz ändert sich
+      // halbjährlich, die Mahnung muss ihren Satz später noch belegen können.
+      interestPercent: zinssatz,
+      interest: zinsen,
+      totalAmount: round(openAmount + stage.fee + zinsen),
       daysOverdue: overdue,
       dueDate: addDays(reference, stage.graceDays),
     };

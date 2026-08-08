@@ -217,6 +217,8 @@ export interface Dunning {
   openAmount: number;
   fee: number;
   interest: number;
+  /** Angewandter Verzugszinssatz; ergibt sich aus Basiszinssatz und Kundenart. */
+  interestPercent: number;
   totalAmount: number;
   daysOverdue: number;
   sentAt: string | null;
@@ -238,6 +240,7 @@ export interface DunningPreview {
   openAmount: number;
   fee: number;
   interest: number;
+  interestPercent: number;
   totalAmount: number;
   daysOverdue: number;
   dueDate: string;
@@ -767,8 +770,20 @@ export interface DunningLevelSetting {
   level: string;
   daysOverdue: number;
   fee: number;
-  interestPercent: number;
+  /** Ob auf dieser Stufe Verzugszinsen anfallen; die Höhe kommt aus dem Basiszinssatz. */
+  zinsen: boolean;
   graceDays: number;
+  /** Aus älteren Einstellungen; wird nur noch gelesen. */
+  interestPercent?: number;
+}
+
+/** Mahnvorgaben samt Basiszinssatz. */
+export interface DunningSettings {
+  basiszinssatz?: number;
+  basiszinssatzGueltigAb?: string;
+  zinspunkteVerbraucher?: number;
+  zinspunkteUnternehmen?: number;
+  stufen?: DunningLevelSetting[];
 }
 
 export interface InspectionSettings {
