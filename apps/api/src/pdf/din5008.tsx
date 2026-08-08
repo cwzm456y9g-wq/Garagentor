@@ -22,6 +22,13 @@ export const MASSE = {
   /** Zone für Rücksendeangabe über der Anschrift. */
   ruecksendeHoehe: 5,
   betreffOben: 98.46,
+  /**
+   * Oberer Rand der Folgeseiten. Dort steht kein Anschriftfeld, der Text
+   * beginnt deshalb weiter oben – sonst bliebe auf jedem weiteren Blatt ein
+   * Viertel der Seite leer. Der Wert hält gerade Abstand zum Briefkopf, der bei
+   * 12 mm beginnt und drei Zeilen hoch ist.
+   */
+  folgeseiteOben: 30,
   faltmarkeEins: 87,
   faltmarkeZwei: 192,
   lochmarke: 148.5,
@@ -41,7 +48,9 @@ export const stile = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: farben.ink,
-    paddingTop: mm(MASSE.anschriftOben),
+    // Der Seitenrand gilt für alle Blätter; die erste Seite schiebt ihren
+    // Fließtext zusätzlich unter das Anschriftfeld (siehe Betreff).
+    paddingTop: mm(MASSE.folgeseiteOben),
     paddingLeft: mm(MASSE.seitenrandLinks),
     paddingRight: mm(MASSE.seitenrandRechts),
     paddingBottom: mm(297 - MASSE.fussOben + 6),
@@ -224,7 +233,7 @@ export function Brief({
         {/* Betreff an Norm-Position, ohne das Wort „Betreff“. Der Abstand
             schiebt den Fließtext unter das Anschriftfeld; auf den Folgeseiten
             beginnt der Text direkt unter dem Seitenrand. */}
-        <View style={{ marginTop: mm(MASSE.betreffOben - MASSE.anschriftOben) }}>
+        <View style={{ marginTop: mm(MASSE.betreffOben - MASSE.folgeseiteOben) }}>
           <Text style={[stile.fett, { fontSize: 11 }]}>{betreff}</Text>
         </View>
 

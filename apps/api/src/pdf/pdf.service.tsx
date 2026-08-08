@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { renderToBuffer } from '@react-pdf/renderer';
+import { EntityType } from '@prisma/client';
+import { DocumentsService } from '../documents/documents.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { Angebot, Rechnung, type BelegOptionen, type BelegPosition } from './belege';
+import { Angebot, anschrift, Rechnung, type BelegOptionen, type BelegPosition } from './belege';
 import type { Firma } from './din5008';
 import { renderGiroCode } from './girocode';
+import { Pruefprotokoll } from './protokoll';
 
 /** Ein Beleg als PDF samt Dateiname für den Download. */
 export interface BelegDatei {
@@ -19,7 +22,10 @@ const zahl = (wert: Dezimal | number | null | undefined): number =>
 
 @Injectable()
 export class PdfService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly documents: DocumentsService,
+  ) {}
 
   /* Einstellungen ------------------------------------------------------ */
 
@@ -227,5 +233,89 @@ export class PdfService {
     );
 
     return { buffer, dateiname: `${quote.quoteNumber}.pdf` };
+  }
+
+  /* Prüfprotokoll ------------------------------------------------------- */
+
+  async pruefprotokoll(id: string): Promise<BelegDatei> {
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id },
+      include: {
+        door: { include: { customer: { include: { addresses: true } } } },
+        checks: { orderBy: { position: 'asc' } },
+        defects: { orderBy: [{ severity: 'desc' }, { dueDate: 'asc' }] },
+      },
+    });
+    if (!inspection) {
+      throw new NotFoundException('Das Prüfprotokoll wurde nicht gefunden.');
+    }
+
+    const [firma, fotos] = await Promise.all([
+      this.firma(),
+      this.documents.imagesFor(EntityType.INSPECTION, id),
+    ]);
+
+    const door = inspection.door;
+    const customer = door.customer;
+
+    const buffer = await renderToBuffer(
+      <Pruefprotokoll
+        daten={{
+          inspectionNumber: inspection.inspectionNumber,
+          type: inspection.type,
+          date: inspection.date,
+          inspectorName: inspection.inspectorName,
+          result: inspection.result,
+          nextDueDate: inspection.nextDueDate,
+          summary: inspection.summary,
+          recommendation: inspection.recommendation,
+          signatureInspector: inspection.signatureInspector,
+          signatureCustomer: inspection.signatureCustomer,
+          signedByName: inspection.signedByName,
+          completedAt: inspection.completedAt,
+          customerNumber: customer.customerNumber,
+          anlage: {
+            doorNumber: door.doorNumber,
+            location: door.location,
+            type: door.type,
+            operationMode: door.operationMode,
+            manufacturer: door.manufacturer,
+            model: door.model,
+            serialNumber: door.serialNumber,
+            yearBuilt: door.yearBuilt,
+            driveManufacturer: door.driveManufacturer,
+            driveModel: door.driveModel,
+          },
+          pruefpunkte: inspection.checks.map((check) => ({
+            position: check.position,
+            key: check.key,
+            group: check.group,
+            label: check.label,
+            reference: check.reference,
+            result: check.result,
+            measuredValue: check.measuredValue === null ? null : zahl(check.measuredValue),
+            unit: check.unit,
+            limitValue: check.limitValue === null ? null : zahl(check.limitValue),
+            comment: check.comment,
+          })),
+          maengel: inspection.defects.map((defect) => ({
+            severity: defect.severity,
+            title: defect.title,
+            description: defect.description,
+            checkKey: defect.checkKey,
+            dueDate: defect.dueDate,
+          })),
+          fotos,
+        }}
+        optionen={{
+          firma,
+          // Das Protokoll geht an den Betreiber der Anlage; die Anschrift kommt
+          // deshalb aus dem Kundenstamm, wie beim Beleg.
+          empfaenger: anschrift(this.empfaenger(customer)),
+        }}
+      />,
+    );
+
+    return { buffer, dateiname: `${inspection.inspectionNumber}.pdf` };
   }
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Paginated } from '@garagentor/shared';
@@ -52,6 +52,7 @@ export class DocumentsService {
     const where: Prisma.DocumentWhereInput = {
       ...(query.entityType ? { entityType: query.entityType } : {}),
       ...(query.entityId ? { entityId: query.entityId } : {}),
+      ...(query.entityRef ? { entityRef: query.entityRef } : {}),
       ...(query.category ? { category: query.category } : {}),
       ...(query.search
         ? {
@@ -130,6 +131,7 @@ export class DocumentsService {
         category: dto.category ?? DocumentCategory.SONSTIGES,
         entityType: dto.entityType ?? null,
         entityId: dto.entityId ?? null,
+        entityRef: dto.entityRef ?? null,
         title: dto.title ?? null,
         description: dto.description ?? null,
         uploadedById: userId ?? null,
@@ -165,6 +167,7 @@ export class DocumentsService {
         ...(dto.category === undefined ? {} : { category: dto.category }),
         ...(dto.entityType === undefined ? {} : { entityType: dto.entityType }),
         ...(dto.entityId === undefined ? {} : { entityId: dto.entityId }),
+        ...(dto.entityRef === undefined ? {} : { entityRef: dto.entityRef }),
       },
     });
   }
@@ -192,6 +195,44 @@ export class DocumentsService {
       include: { uploadedBy: { select: { id: true, firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Bilder einer Entität als Data-URL, damit sie sich in ein PDF einbetten
+   * lassen.
+   *
+   * Beschränkt auf JPEG und PNG: der Bildleser von react-pdf kennt weder WebP
+   * noch HEIC, und ein nicht lesbares Bild bricht den ganzen Aufbau ab. Fehlt
+   * eine Datei auf der Platte, wird sie übergangen – ein Protokoll ohne Foto
+   * ist brauchbarer als gar keines.
+   */
+  async imagesFor(
+    entityType: EntityType,
+    entityId: string,
+  ): Promise<Array<{ id: string; entityRef: string | null; title: string | null; data: string }>> {
+    const documents = await this.prisma.document.findMany({
+      where: { entityType, entityId, mimeType: { in: ['image/jpeg', 'image/png'] } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const images = await Promise.all(
+      documents.map(async (document) => {
+        try {
+          const bytes = await readFile(this.absolutePath(document.storagePath));
+          return {
+            id: document.id,
+            entityRef: document.entityRef,
+            title: document.title,
+            data: `data:${document.mimeType};base64,${bytes.toString('base64')}`,
+          };
+        } catch (error) {
+          this.logger.warn(`Bild ${document.storagePath} konnte nicht gelesen werden: ${error}`);
+          return null;
+        }
+      }),
+    );
+
+    return images.filter((image): image is NonNullable<typeof image> => image !== null);
   }
 
   /**

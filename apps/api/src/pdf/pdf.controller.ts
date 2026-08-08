@@ -17,6 +17,14 @@ export class PdfController {
     this.ausliefern(response, buffer, dateiname);
   }
 
+  @Get('inspections/:id/pdf')
+  @ApiProduces('application/pdf')
+  @ApiOperation({ summary: 'Prüfprotokoll nach ASR A1.7 als PDF' })
+  async pruefprotokoll(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    const { buffer, dateiname } = await this.pdf.pruefprotokoll(id);
+    this.ausliefern(response, buffer, dateiname);
+  }
+
   @Get('quotes/:id/pdf')
   @ApiProduces('application/pdf')
   @ApiOperation({ summary: 'Angebot als PDF nach DIN 5008' })

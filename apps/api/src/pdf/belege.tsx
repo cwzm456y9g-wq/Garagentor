@@ -218,7 +218,8 @@ function Summenblock({
   );
 }
 
-function anschrift(empfaenger: BelegEmpfaenger): string[] {
+/** Anschrift Zeile für Zeile, leere Bestandteile entfallen. */
+export function anschrift(empfaenger: BelegEmpfaenger): string[] {
   return [
     empfaenger.anrede ?? '',
     empfaenger.name,

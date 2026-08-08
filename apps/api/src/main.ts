@@ -16,6 +16,13 @@ const STANDARD_BODY_LIMIT = '100kb';
 /** Größerer Rahmen für die Einstellungen, die das Logo als Data-URL tragen. */
 const LOGO_BODY_LIMIT = '1mb';
 
+/**
+ * Rahmen für Abschlüsse mit Unterschrift. Zwei handgeschriebene Züge aus dem
+ * Unterschriftenfeld liegen als PNG-Data-URL typischerweise bei einigen zehn
+ * Kilobyte; auf einem hochauflösenden Tablet werden es deutlich mehr.
+ */
+const SIGNATURE_BODY_LIMIT = '1mb';
+
 async function bootstrap(): Promise<void> {
   const config = loadConfiguration();
   // Der eingebaute Parser wird abgeschaltet, weil die Grenze pfadabhängig ist –
@@ -28,16 +35,13 @@ async function bootstrap(): Promise<void> {
   // die üblichen 100 kB. Der größere Rahmen gilt bewusst nur für diesen Pfad;
   // die Reihenfolge zählt, der engere Parser darf erst danach greifen.
   app.use('/api/settings', json({ limit: LOGO_BODY_LIMIT }));
+  app.use('/api/inspections', json({ limit: SIGNATURE_BODY_LIMIT }));
+  app.use('/api/service-reports', json({ limit: SIGNATURE_BODY_LIMIT }));
   app.use(json({ limit: STANDARD_BODY_LIMIT }));
   app.use(urlencoded({ extended: true, limit: STANDARD_BODY_LIMIT }));
   // Uploads werden als Data-URL/Datei ausgeliefert, daher kein strenger CORP.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({ origin: config.corsOrigins, credentials: true });
-
-  // Die Einstellungen tragen das Firmenlogo als Data-URL und überschreiten damit
-  // die voreingestellten 100 kB für JSON. Der größere Rahmen gilt bewusst nur
-  // für diesen Pfad – alle übrigen Endpunkte bleiben bei der engen Grenze.
-  // Reihenfolge zählt: der eigene Parser muss vor dem allgemeinen greifen.
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1363,6 +1363,9 @@ model Document {
   category     DocumentCategory @default(SONSTIGES)
   entityType   EntityType?
   entityId     String?
+  /// Feinere Zuordnung innerhalb der Entität, etwa der Schlüssel eines
+  /// Prüfpunkts. So hängt ein Foto am einzelnen Punkt statt am ganzen Protokoll.
+  entityRef    String?
   title        String?
   description  String?
   uploadedBy   User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
@@ -1372,6 +1375,7 @@ model Document {
   updatedAt DateTime @updatedAt
 
   @@index([entityType, entityId])
+  @@index([entityType, entityId, entityRef])
   @@index([category])
   @@map("documents")
 }

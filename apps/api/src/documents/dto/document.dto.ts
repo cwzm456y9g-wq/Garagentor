@@ -19,6 +19,14 @@ export class UploadDocumentDto {
   @IsString()
   entityId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Feinere Zuordnung innerhalb der Entität, z. B. der Schlüssel eines Prüfpunkts',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  entityRef?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -59,6 +67,12 @@ export class UpdateDocumentDto {
   @IsOptional()
   @IsString()
   entityId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  entityRef?: string;
 }
 
 export class DocumentQueryDto extends PaginationQueryDto {
@@ -71,6 +85,12 @@ export class DocumentQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   entityId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  entityRef?: string;
 
   @ApiPropertyOptional({ enum: DocumentCategory })
   @IsOptional()

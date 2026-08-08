@@ -344,6 +344,9 @@ export interface Inspection extends InspectionSummary {
   summary: string | null;
   recommendation: string | null;
   signedByName: string | null;
+  /** Unterschriften als Data-URL, erfasst beim Abschluss. */
+  signatureInspector?: string | null;
+  signatureCustomer?: string | null;
   doorId: string;
   door?: Door;
   inspector?: EmployeeRef | null;
@@ -699,6 +702,8 @@ export interface DocumentEntry {
   category: DocumentCategory;
   entityType: string | null;
   entityId: string | null;
+  /** Feinere Zuordnung innerhalb der Entität, z. B. ein Prüfpunkt. */
+  entityRef: string | null;
   title: string | null;
   description: string | null;
   createdAt: string;

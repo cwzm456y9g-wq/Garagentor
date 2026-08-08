@@ -6,9 +6,12 @@ import {
   formatNumber,
   inspectionTypeLabels,
   type CheckResult,
+  type Paginated,
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
+import { PhotoGallery } from '@/components/photo-gallery';
+import { SignaturePad } from '@/components/signature-pad';
 import {
   Badge,
   Button,
@@ -23,7 +26,7 @@ import {
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
 import { defectSeverity, inspectionResult } from '@/lib/status';
-import type { Inspection, InspectionCheck } from '@/lib/types';
+import type { DocumentEntry, Inspection, InspectionCheck } from '@/lib/types';
 
 /** Eingabestand eines Prüfpunkts vor dem Speichern. */
 interface CheckDraft {
@@ -35,8 +38,19 @@ interface CheckDraft {
 export default function InspectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, loading, error, reload } = useApi<Inspection>(`/inspections/${id}`);
+
+  // Alle Fotos des Protokolls werden einmal geladen und je Prüfpunkt verteilt –
+  // 31 Einzelabfragen wären auf dem Telefon spürbar langsam.
+  const fotos = useApi<Paginated<DocumentEntry>>('/documents', {
+    entityType: 'INSPECTION',
+    entityId: id,
+    pageSize: 200,
+  });
+
   const [drafts, setDrafts] = useState<Record<string, CheckDraft>>({});
   const [signedByName, setSignedByName] = useState('');
+  const [signatureInspector, setSignatureInspector] = useState<string | null>(null);
+  const [signatureCustomer, setSignatureCustomer] = useState<string | null>(null);
 
   // Der Eingabestand wird aus dem geladenen Protokoll vorbelegt.
   useEffect(() => {
@@ -59,6 +73,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
   const complete = useAction((body: Record<string, unknown>) =>
     api.post(`/inspections/${id}/complete`, body),
   );
+  const pdf = useAction(() => api.openFile(`/inspections/${id}/pdf`));
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <LoadingState />;
@@ -68,6 +83,21 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
   const defects = checks.filter((check) => drafts[check.key]?.result === 'MANGEL').length;
   const closed = Boolean(data.completedAt);
   const result = inspectionResult(data.result);
+
+  const alleFotos = fotos.data?.items ?? [];
+  const fotosZu = (key: string | null) =>
+    alleFotos.filter((foto) => (foto.entityRef ?? null) === key);
+
+  /** Lädt ein Foto hoch und hängt es an das Protokoll bzw. einen Prüfpunkt. */
+  function ladeFotoHoch(datei: File, checkKey: string | null) {
+    const form = new FormData();
+    form.append('file', datei);
+    form.append('category', 'FOTO');
+    form.append('entityType', 'INSPECTION');
+    form.append('entityId', id);
+    if (checkKey) form.append('entityRef', checkKey);
+    return api.post('/documents', form);
+  }
 
   // Prüfpunkte werden nach den Gruppen des Katalogs gegliedert.
   const groups = checks.reduce<Record<string, InspectionCheck[]>>((acc, check) => {
@@ -111,29 +141,43 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
           </span>
         }
         actions={
-          !closed && (
-            <>
-              <Button variant="secondary" loading={save.loading} onClick={() => void saveChecks()}>
-                Zwischenstand speichern
-              </Button>
-              <Button
-                loading={complete.loading}
-                disabled={done < checks.length}
-                onClick={async () => {
-                  await saveChecks();
-                  if (await complete.run({ signedByName: signedByName || undefined })) reload();
-                }}
-              >
-                Prüfung abschließen
-              </Button>
-            </>
-          )
+          <>
+            <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
+              Als PDF
+            </Button>
+            {!closed && (
+              <>
+                <Button
+                  variant="secondary"
+                  loading={save.loading}
+                  onClick={() => void saveChecks()}
+                >
+                  Zwischenstand speichern
+                </Button>
+                <Button
+                  loading={complete.loading}
+                  disabled={done < checks.length}
+                  onClick={async () => {
+                    await saveChecks();
+                    const abgeschlossen = await complete.run({
+                      signedByName: signedByName || undefined,
+                      signatureInspector: signatureInspector ?? undefined,
+                      signatureCustomer: signatureCustomer ?? undefined,
+                    });
+                    if (abgeschlossen) reload();
+                  }}
+                >
+                  Prüfung abschließen
+                </Button>
+              </>
+            )}
+          </>
         }
       />
 
-      {(save.error ?? complete.error) && (
+      {(save.error ?? complete.error ?? pdf.error) && (
         <div className="mb-4">
-          <ErrorState message={(save.error ?? complete.error)!} />
+          <ErrorState message={(save.error ?? complete.error ?? pdf.error)!} />
         </div>
       )}
 
@@ -180,9 +224,6 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
             </span>
           </div>
           {data.summary && <p className="mt-3 text-sm text-slate-700">{data.summary}</p>}
-          {data.signedByName && (
-            <p className="mt-2 text-xs text-slate-500">Gegengezeichnet von {data.signedByName}</p>
-          )}
           {(data.defects ?? []).length > 0 && (
             <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4">
               {(data.defects ?? []).map((defect) => {
@@ -196,8 +237,42 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
               })}
             </ul>
           )}
+
+          {(data.signatureInspector || data.signatureCustomer) && (
+            <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+              <SignaturePad
+                label={`Prüfende Person – ${data.inspectorName}`}
+                value={data.signatureInspector ?? null}
+                onChange={() => undefined}
+                disabled
+              />
+              <SignaturePad
+                label={`Betreiber – ${data.signedByName ?? 'ohne Namen'}`}
+                value={data.signatureCustomer ?? null}
+                onChange={() => undefined}
+                disabled
+              />
+            </div>
+          )}
+          {!data.signatureInspector && !data.signatureCustomer && data.signedByName && (
+            <p className="mt-2 text-xs text-slate-500">Gegengezeichnet von {data.signedByName}</p>
+          )}
         </Card>
       )}
+
+      <Card title="Fotos zur Anlage" className="mb-6">
+        <PhotoGallery
+          photos={fotosZu(null)}
+          onUpload={(datei) => ladeFotoHoch(datei, null)}
+          onDeleted={fotos.reload}
+          disabled={closed}
+          label="Foto aufnehmen"
+        />
+        <p className="mt-2 text-xs text-slate-500">
+          Aufnahmen der Gesamtanlage. Fotos zu einzelnen Beanstandungen gehören an den jeweiligen
+          Prüfpunkt weiter unten.
+        </p>
+      </Card>
 
       <div className="space-y-6">
         {Object.entries(groups).map(([group, items]) => (
@@ -213,6 +288,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
                   check.limitValue != null &&
                   draft.measuredValue !== '' &&
                   Number(draft.measuredValue) > check.limitValue;
+                const punktFotos = fotosZu(check.key);
 
                 return (
                   <li key={check.id} className="px-5 py-3">
@@ -283,6 +359,19 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
                         className="mt-2"
                       />
                     )}
+
+                    {/* Das Feld zum Fotografieren erscheint erst, wenn es etwas
+                        zu zeigen gibt – sonst 31 Knöpfe ohne Anlass. */}
+                    {(draft.result === 'MANGEL' || punktFotos.length > 0) && (
+                      <PhotoGallery
+                        photos={punktFotos}
+                        onUpload={(datei) => ladeFotoHoch(datei, check.key)}
+                        onDeleted={fotos.reload}
+                        disabled={closed}
+                        label="Foto zum Mangel"
+                        className="mt-2"
+                      />
+                    )}
                   </li>
                 );
               })}
@@ -306,6 +395,22 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
               />
             </Field>
           </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <SignaturePad
+              label={`Prüfende Person – ${data.inspectorName}`}
+              hint="Wird in das Protokoll übernommen und ist danach nicht mehr änderbar."
+              value={signatureInspector}
+              onChange={setSignatureInspector}
+            />
+            <SignaturePad
+              label="Betreiber bzw. Beauftragter"
+              hint="Bestätigt die Kenntnisnahme des Ergebnisses."
+              value={signatureCustomer}
+              onChange={setSignatureCustomer}
+            />
+          </div>
+
           <p className="mt-3 text-xs text-slate-500">
             Der Abschluss setzt ein Ergebnis zu jedem Prüfpunkt voraus. Beanstandungen werden
             automatisch als Mängel mit Frist angelegt; sicherheitsrelevante Punkte führen zur
