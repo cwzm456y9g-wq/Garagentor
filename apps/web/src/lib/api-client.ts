@@ -184,6 +184,35 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+/**
+ * Wie `request`, gibt aber die Antwort selbst zurück – für Dateien, die nicht
+ * als JSON ausgewertet werden. Token und Erneuerung laufen gleich.
+ */
+export async function requestRaw(path: string): Promise<Response> {
+  const send = (token: string | null) =>
+    fetch(buildUrl(path), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+  let response = await send(tokenStore.access);
+
+  if (response.status === 401) {
+    const token = await refreshAccessToken();
+    if (token) {
+      response = await send(token);
+    } else {
+      tokenStore.clear();
+      onSessionExpired?.();
+      throw new ApiError(401, 'Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
+    }
+  }
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+  return response;
+}
+
 /** Kurzformen für die gängigen Verben. */
 export const api = {
   get: <T>(path: string, query?: RequestOptions['query'], signal?: AbortSignal) =>
@@ -201,6 +230,27 @@ export const api = {
    */
   postAnonymous: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body, anonymous: true }),
+
+  /**
+   * Holt eine Datei und öffnet sie in einem neuen Tab. Ein einfacher Verweis
+   * würde nicht genügen: die Endpunkte verlangen das Zugangstoken im Kopf, und
+   * ein Token im Verweis stünde in der Adresszeile und im Verlauf.
+   */
+  openFile: async (path: string): Promise<void> => {
+    const antwort = await requestRaw(path);
+    const blob = await antwort.blob();
+    const url = URL.createObjectURL(blob);
+    const fenster = window.open(url, '_blank');
+    if (!fenster) {
+      // Wird das Fenster geblockt, wird stattdessen heruntergeladen.
+      const verweis = document.createElement('a');
+      verweis.href = url;
+      verweis.download = path.split('/').pop() ?? 'beleg.pdf';
+      verweis.click();
+    }
+    // Der Browser braucht den Verweis noch einen Moment.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
 };
 
 /** Basisadresse der API, etwa für Download-Verweise. */

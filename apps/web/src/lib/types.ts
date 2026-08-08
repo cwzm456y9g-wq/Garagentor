@@ -758,6 +758,8 @@ export interface CompanySettings {
 
 /** Vorgaben für Angebote und Rechnungen. */
 export interface DocumentSettings {
+  /** Kleinunternehmerregelung nach § 19 UStG: kein Steuerausweis auf den Belegen. */
+  kleinunternehmer?: boolean;
   defaultVatRate?: number;
   defaultPaymentTermsDays?: number;
   quoteValidityDays?: number;

@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "CommonJS",
+    // Die Belegvorlagen sind in TSX geschrieben.
+    "jsx": "react-jsx",
     "moduleResolution": "Node",
     "outDir": "./dist",
     "rootDir": "./src",
@@ -19,6 +21,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "prisma"]
 }

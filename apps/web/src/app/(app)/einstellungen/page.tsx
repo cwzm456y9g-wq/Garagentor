@@ -405,10 +405,44 @@ function BelegeKarte({ geladen, neuLaden }: { geladen: DocumentSettings; neuLade
       <div className="card-body space-y-5">
         {speichern.error && <ErrorState message={speichern.error} />}
 
+        <label className="flex items-start gap-2.5 rounded-md bg-slate-50 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={wert.kleinunternehmer === true}
+            onChange={(event) =>
+              // Der Steuersatz folgt dem Schalter: sonst entstünden Positionen
+              // mit 19 %, die auf dem Beleg als steuerpflichtig gelten.
+              setEntwurf({
+                ...wert,
+                kleinunternehmer: event.target.checked,
+                defaultVatRate: event.target.checked ? 0 : (wert.defaultVatRate ?? 19) || 19,
+              })
+            }
+            className="mt-0.5 rounded border-slate-300"
+          />
+          <span className="text-sm">
+            <span className="font-medium">Kleinunternehmerregelung nach § 19 UStG</span>
+            <span className="mt-0.5 block text-slate-600">
+              Belege ohne Umsatzsteuerausweis, dafür mit dem Pflichthinweis. Die Steuerlogik bleibt
+              erhalten: wird die Umsatzgrenze im laufenden Jahr gerissen, genügt das Entfernen
+              dieses Hakens.
+            </span>
+          </span>
+        </label>
+
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Umsatzsteuersatz" htmlFor="belege-ust" hint="Vorbelegung neuer Positionen.">
+          <Field
+            label="Umsatzsteuersatz"
+            htmlFor="belege-ust"
+            hint={
+              wert.kleinunternehmer
+                ? 'Ohne Steuerausweis nach § 19 UStG.'
+                : 'Vorbelegung neuer Positionen.'
+            }
+          >
             <Select
               id="belege-ust"
+              disabled={wert.kleinunternehmer === true}
               value={String(wert.defaultVatRate ?? 19)}
               onChange={(event) =>
                 setEntwurf({ ...wert, defaultVatRate: Number(event.target.value) })

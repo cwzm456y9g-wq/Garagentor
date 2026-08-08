@@ -12,6 +12,7 @@ import { HealthController } from './health/health.controller';
 import { HrModule } from './hr/hr.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { PdfModule } from './pdf/pdf.module';
 import { OrdersModule } from './orders/orders.module';
 import { PlanningModule } from './planning/planning.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -38,6 +39,7 @@ import { SettingsModule } from './settings/settings.module';
     QuotesModule,
     OrdersModule,
     InvoicesModule,
+    PdfModule,
     DoorsModule,
     InventoryModule,
     PlanningModule,

@@ -96,6 +96,10 @@ async function seedSettings(): Promise<void> {
       category: 'belege',
       description: 'Vorgaben für Angebote und Rechnungen',
       value: {
+        // Umsatzsteuer wird ausgewiesen. Wer unter § 19 UStG fällt, setzt den
+        // Schalter in den Einstellungen; die Steuerlogik bleibt dabei erhalten,
+        // damit sie beim Reißen der Umsatzgrenze sofort wieder greift.
+        kleinunternehmer: false,
         defaultVatRate: 19,
         defaultPaymentTermsDays: 14,
         quoteValidityDays: 30,

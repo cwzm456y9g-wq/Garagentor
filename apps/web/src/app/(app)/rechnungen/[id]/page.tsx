@@ -36,6 +36,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const { hasRole } = useAuth();
   const { data, loading, error, reload } = useApi<Invoice>(`/invoices/${id}`);
 
+  const pdf = useAction(() => api.openFile(`/invoices/${id}/pdf`));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(toIsoDate(new Date()));
@@ -87,47 +88,52 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           </span>
         }
         actions={
-          mayBook && (
-            <>
-              {data.status === 'ENTWURF' && (
-                <Button
-                  loading={send.loading}
-                  onClick={async () => {
-                    if (await send.run()) reload();
-                  }}
-                >
-                  Rechnung stellen
-                </Button>
-              )}
-              {open > 0 && data.status !== 'ENTWURF' && data.status !== 'STORNIERT' && (
-                <Button variant="secondary" onClick={() => setPaymentOpen((value) => !value)}>
-                  Zahlung buchen
-                </Button>
-              )}
-              {data.status === 'UEBERFAELLIG' && (
-                <Button
-                  variant="secondary"
-                  loading={dun.loading}
-                  onClick={async () => {
-                    if (await dun.run()) reload();
-                  }}
-                >
-                  Mahnung erstellen
-                </Button>
-              )}
-              {data.status !== 'STORNIERT' && (
-                <Button
-                  variant="ghost"
-                  loading={cancel.loading}
-                  onClick={async () => {
-                    if (await cancel.run()) reload();
-                  }}
-                >
-                  Stornieren
-                </Button>
-              )}
-            </>
-          )
+          <>
+            <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
+              Als PDF
+            </Button>
+            {mayBook && (
+              <>
+                {data.status === 'ENTWURF' && (
+                  <Button
+                    loading={send.loading}
+                    onClick={async () => {
+                      if (await send.run()) reload();
+                    }}
+                  >
+                    Rechnung stellen
+                  </Button>
+                )}
+                {open > 0 && data.status !== 'ENTWURF' && data.status !== 'STORNIERT' && (
+                  <Button variant="secondary" onClick={() => setPaymentOpen((value) => !value)}>
+                    Zahlung buchen
+                  </Button>
+                )}
+                {data.status === 'UEBERFAELLIG' && (
+                  <Button
+                    variant="secondary"
+                    loading={dun.loading}
+                    onClick={async () => {
+                      if (await dun.run()) reload();
+                    }}
+                  >
+                    Mahnung erstellen
+                  </Button>
+                )}
+                {data.status !== 'STORNIERT' && (
+                  <Button
+                    variant="ghost"
+                    loading={cancel.loading}
+                    onClick={async () => {
+                      if (await cancel.run()) reload();
+                    }}
+                  >
+                    Stornieren
+                  </Button>
+                )}
+              </>
+            )}
+          </>
         }
       />
 

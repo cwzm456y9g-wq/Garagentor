@@ -15,6 +15,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const router = useRouter();
   const { data, loading, error, reload } = useApi<Quote>(`/quotes/${id}`);
+  const pdf = useAction(() => api.openFile(`/quotes/${id}/pdf`));
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -50,6 +51,9 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
         }
         actions={
           <>
+            <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
+              Als PDF
+            </Button>
             {data.status === 'ENTWURF' && (
               <Button loading={send.loading} onClick={() => void run(() => send.run())}>
                 Versenden
