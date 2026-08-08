@@ -13,15 +13,26 @@
   },
   "dependencies": {
     "@garagentor/shared": "*",
+    "@prisma/client": "^6.19.3",
+    "@react-pdf/renderer": "^4.5.1",
+    "@supabase/supabase-js": "^2.58.0",
+    "argon2": "^0.44.0",
+    "jsonwebtoken": "^9.0.2",
     "next": "^15.5.4",
+    "nodemailer": "^9.0.5",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "@next/eslint-plugin-next": "^15.5.4",
     "@tailwindcss/postcss": "^4.1.13",
+    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.18.1",
+    "@types/nodemailer": "^8.0.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "eslint": "^9.35.0",
