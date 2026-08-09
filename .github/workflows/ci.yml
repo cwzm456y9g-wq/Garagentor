@@ -24,7 +24,7 @@ jobs:
         run: npm ci
 
       # Das gemeinsame Paket wird über sein Build-Ergebnis eingebunden (dist/),
-      # das nicht eingecheckt ist. API und Web können also erst dagegen prüfen,
+      # das nicht eingecheckt ist. Die Anwendung kann also erst dagegen prüfen,
       # wenn es einmal übersetzt wurde.
       - name: Gemeinsames Paket bauen
         run: npm run build:shared

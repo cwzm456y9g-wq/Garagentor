@@ -13,13 +13,12 @@ export interface Konfiguration {
     zugangsDauer: string;
     erneuerungsDauer: string;
   };
+  /**
+   * Hochgeladene Dateien liegen in Supabase Storage, nicht auf der Platte:
+   * Auf Hostingers geteiltem Webhosting übersteht ein Verzeichnis das nächste
+   * Ausrollen nicht zuverlässig.
+   */
   uploads: {
-    /**
-     * Verzeichnis auf der Platte. Auf Hostingers geteiltem Webhosting
-     * übersteht das ein Neuausrollen nicht zuverlässig – deshalb wandert die
-     * Ablage anschließend nach Supabase Storage.
-     */
-    dir: string;
     maxBytes: number;
     /** Name des privaten Buckets in Supabase Storage. */
     bucket: string;
@@ -103,7 +102,6 @@ export function konfiguration(): Konfiguration {
       erneuerungsDauer: process.env.JWT_REFRESH_TTL ?? '7d',
     },
     uploads: {
-      dir: process.env.UPLOAD_DIR ?? './uploads',
       maxBytes: Number.parseInt(process.env.MAX_UPLOAD_MB ?? '25', 10) * 1024 * 1024,
       bucket: process.env.SUPABASE_BUCKET?.trim() || 'dokumente',
       supabaseUrl: process.env.SUPABASE_URL?.trim() || null,

@@ -60,24 +60,22 @@ npm run db:up
 # Schema anlegen und Demodaten einspielen
 npm run setup
 
-# API (Port 4000) und Web (Port 3000) starten
+# Anwendung starten (Port 3000)
 npm run dev
 ```
 
-- Web: <http://localhost:3000> – Anmeldung unter `/login`
-- API: <http://localhost:4000/api>
-- OpenAPI-Dokumentation: <http://localhost:4000/api/docs>
-
-Die Zugangsdaten der Demodaten werden am Ende des Seed-Laufs ausgegeben.
+Alles liegt unter <http://localhost:3000> – Anmeldung unter `/login`, die
+Schnittstelle unter `/api`. Die Zugangsdaten der Demodaten werden am Ende des
+Seed-Laufs ausgegeben.
 
 Ohne Docker genügt eine beliebige erreichbare PostgreSQL-Instanz ab Version 14;
-dann entfällt `npm run db:up` und in der `.env` wird `DATABASE_URL` auf diese
-Instanz gezeigt. Die `.env` liegt bewusst nur im Wurzelverzeichnis – API, Prisma
-und Compose lesen dieselbe Datei.
+dann entfällt `npm run db:up` und in der `.env` zeigen `DATABASE_URL` und
+`DIRECT_URL` auf diese Instanz. Die `.env` liegt bewusst nur im
+Wurzelverzeichnis – Anwendung, Prisma und Compose lesen dieselbe Datei.
 
 `packages/shared` wird über sein Build-Ergebnis eingebunden. Ein `npm install`
 allein genügt deshalb nicht; `npm run setup` (oder `npm run build:shared`) muss
-einmal gelaufen sein, sonst finden API und Web das Paket nicht. `npm run dev`
+einmal gelaufen sein, sonst findet die Anwendung das Paket nicht. `npm run dev`
 baut es vorab und hält es anschließend im Watch-Modus.
 
 ## Skripte im Wurzelverzeichnis
@@ -85,9 +83,10 @@ baut es vorab und hält es anschließend im Watch-Modus.
 | Skript                 | Wirkung                                            |
 | ---------------------- | -------------------------------------------------- |
 | `npm run setup`        | Paket bauen, Client erzeugen, migrieren, Demodaten |
-| `npm run dev`          | Shared, API und Web parallel im Watch-Modus        |
+| `npm run dev`          | Shared und Anwendung parallel im Watch-Modus       |
 | `npm run build`        | Alle Workspaces bauen                              |
 | `npm run build:shared` | Nur das gemeinsame Paket bauen                     |
+| `npm run paket`        | Aus dem Bau ein Hostinger-Paket schnüren           |
 | `npm run typecheck`    | TypeScript-Prüfung ohne Ausgabe                    |
 | `npm run lint`         | ESLint über alle Workspaces                        |
 | `npm test`             | Tests aller Workspaces                             |
@@ -101,57 +100,59 @@ an; erwartet werden `ADMIN_EMAIL` und `ADMIN_PASSWORD`.
 
 ## Produktivbetrieb
 
-Auf einem eigenen Server genügen Docker und eine Domain, die per A-Eintrag auf
-den Server zeigt. Caddy holt das Zertifikat selbst und liefert Oberfläche und
-Schnittstelle unter derselben Domain aus – damit entfällt CORS.
-
-Die vollständige Einrichtung vom leeren Server bis zur laufenden Anwendung
-beschreibt **[deploy/server-einrichten.md](deploy/server-einrichten.md)**, samt
-Firewall, Sicherung und Checkliste. Die Kurzfassung:
+Ziel ist **Hostingers Node.js-Webhosting** mit **Supabase** in Frankfurt als
+Datenbank. Vollständig beschrieben – beide Verbindungen, alle
+Umgebungsvariablen, der nächtliche Cron-Eintrag – in
+**[docs/betrieb.md](docs/betrieb.md)**. Die Kurzfassung:
 
 ```bash
-cp .env.prod.example .env.prod
-chmod 600 .env.prod
-# Domain, Mailadresse und Passwörter eintragen. Secrets erzeugen mit:
-openssl rand -base64 48
-
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+npm ci
+npm run build
+npm run paket        # legt ./paket an
 ```
 
-Der Dienst `migrate` bringt das Schema vor dem Start der Anwendung auf Stand.
-Weil es keine Selbstregistrierung gibt, wird der erste Zugang anschließend
-angelegt – derselbe Aufruf setzt später ein vergessenes Passwort zurück und
-beendet dabei alle offenen Sitzungen des Kontos:
+Das Verzeichnis `paket/` hochladen und in hPanel unter **Node.js** als
+Startdatei `apps/web/server.js` eintragen. Die Werte aus
+`.env.prod.example` gehören dort als Umgebungsvariablen hinterlegt, **nicht**
+als Datei ins Paket. Die Anwendung weigert sich zu starten, wenn ein Geheimnis
+noch den Entwicklungswert enthält oder kürzer als 32 Zeichen ist.
+
+Das Schema bringt `npm run db:migrate` auf Stand; es läuft über `DIRECT_URL`
+und lässt sich auch vom eigenen Rechner aus anstoßen. Weil es keine
+Selbstregistrierung gibt, wird der erste Zugang anschließend angelegt –
+derselbe Aufruf setzt später ein vergessenes Passwort zurück und beendet dabei
+alle offenen Sitzungen des Kontos:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod \
-  run --rm -e ADMIN_EMAIL=chefin@example.de -e ADMIN_PASSWORD='…' \
-  migrate npm run db:admin --workspace @garagentor/web
+ADMIN_EMAIL=chefin@example.de ADMIN_PASSWORD='…' \
+  npm run db:admin --workspace @garagentor/web
 ```
 
-Datenbank, API und Oberfläche hängen nur am internen Netz; von außen ist allein
-Caddy auf Port 80 und 443 erreichbar. Die OpenAPI-Dokumentation ist im
-Produktivbetrieb bewusst abgeschaltet.
+Die vier nächtlichen Läufe hängen an `POST /api/cron`, ausgewiesen über
+`CRON_SECRET`; `GET /api/health` antwortet ohne Anmeldung und meldet, ob die
+Datenbank erreichbar ist.
 
 ### Sicherung
 
-`deploy/sicherung.sh` legt Datenbankauszug, Dokumentenablage und Prüfsummen in
-einem Tagesverzeichnis ab und entfernt Stände, die älter als 30 Tage sind. Als
-nächtlicher Cron-Eintrag auf dem Server:
+`deploy/sicherung.sh` zieht per `pg_dump` über `DIRECT_URL` einen Auszug,
+prüft ihn und entfernt Stände, die älter als 30 Tage sind. Der Lauf gehört
+**nicht** auf Hostingers Webhosting – dort steht `pg_dump` in der Regel nicht
+zur Verfügung –, sondern auf den eigenen Rechner, ein NAS oder einen kleinen
+Server:
 
 ```
-0 2 * * *  ZIEL=/var/backups/garagentor /opt/garagentor/deploy/sicherung.sh >> /var/log/garagentor-sicherung.log 2>&1
+0 2 * * *  SICHERUNG_ZIEL=/var/backups/garagentor /pfad/zu/sicherung.sh >> /var/log/garagentor-sicherung.log 2>&1
 ```
 
-`ZIEL` darf ein synchronisierter Ordner sein (iCloud Drive, Nextcloud, ein
-eingebundener Netzspeicher). Zurückgespielt wird ein Stand mit:
+`SICHERUNG_ZIEL` darf ein synchronisierter Ordner sein (iCloud Drive,
+Nextcloud, ein eingebundener Netzspeicher). Zurückgespielt wird ein Stand mit:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod stop api web
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
-  pg_restore -U garagentor -d garagentor --clean --if-exists --no-owner < datenbank.dump
-docker compose -f docker-compose.prod.yml --env-file .env.prod start api web
+gunzip -c garagentor_2026-08-09_0200.sql.gz | psql "$DIRECT_URL"
 ```
+
+Die Dokumentenablage liegt in Supabase Storage und wird von diesem Skript
+nicht mitgesichert; sie lässt sich über die Supabase-CLI ausleiten.
 
 Eine synchronisierte Kopie ersetzt keine revisionssichere Ablage: für
 Buchungsbelege gelten eigene Aufbewahrungs- und Unveränderbarkeitspflichten

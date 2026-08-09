@@ -1,8 +1,8 @@
 // Datenmodell der Garagentor-Branchensoftware.
 //
-// Geldbeträge liegen als Decimal(12,2) in der Datenbank. Die API liefert sie
-// über einen globalen Interceptor als JSON-Zahlen aus, damit Frontend und
-// Backend dieselben Rechenhelfer aus @garagentor/shared nutzen können.
+// Geldbeträge liegen als Decimal(12,2) in der Datenbank. Die Route Handler
+// wandeln sie beim Ausliefern über `alsZahlen()` in JSON-Zahlen, damit
+// Oberfläche und Server dieselben Rechenhelfer aus @garagentor/shared nutzen.
 
 generator client {
   provider = "prisma-client-js"
