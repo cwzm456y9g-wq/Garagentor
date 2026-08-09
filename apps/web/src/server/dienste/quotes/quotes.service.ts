@@ -277,6 +277,23 @@ export class QuotesService {
     );
 
     return prisma.$transaction(async (tx) => {
+      // Die Angebotszeile bis zum Ende der Transaktion sperren. Der Status
+      // allein schützt nicht: Ein angenommenes Angebot bleibt angenommen, ein
+      // zweiter Aufruf käme also durch und legte denselben Auftrag noch einmal
+      // an. Ohne die Sperre sähen zwei gleichzeitige Aufrufe – ein doppelter
+      // Klick genügt – beide „noch kein Auftrag".
+      await tx.$queryRaw`SELECT id FROM quotes WHERE id = ${id} FOR UPDATE`;
+
+      const vorhanden = await tx.order.findFirst({
+        where: { quoteId: id },
+        select: { orderNumber: true },
+      });
+      if (vorhanden) {
+        throw new ConflictException(
+          `Zum Angebot ${quote.quoteNumber} besteht bereits der Auftrag ${vorhanden.orderNumber}.`,
+        );
+      }
+
       const orderNumber = await numbers.next('ORDER', tx);
       return tx.order.create({
         data: {
