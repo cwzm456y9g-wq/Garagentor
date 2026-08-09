@@ -157,14 +157,30 @@ export class ServiceReportsService {
    * aus. Danach ist der Bericht als Nachweis unveränderlich.
    */
   async complete(id: string, dto: CompleteServiceReportDto) {
-    const report = await this.requireDraft(id);
-
-    const materials = await prisma.serviceReportMaterial.findMany({
-      where: { reportId: id, articleId: { not: null } },
-      include: { article: true },
-    });
-
     return prisma.$transaction(async (tx) => {
+      // Die Berichtszeile sperren und erst danach den Status prüfen.
+      //
+      // Der Abschluss bucht Material aus. Lag die Prüfung „ist noch Entwurf"
+      // davor, kamen zwei gleichzeitige Abschlüsse beide durch und zogen das
+      // Material zweimal vom Bestand ab – ein Doppelklick auf dem Tablet des
+      // Monteurs genügt dafür.
+      await tx.$queryRaw`SELECT id FROM service_reports WHERE id = ${id} FOR UPDATE`;
+
+      const report = await tx.serviceReport.findUnique({ where: { id } });
+      if (!report) {
+        throw new NotFoundException('Der Servicebericht wurde nicht gefunden.');
+      }
+      if (report.status !== ServiceReportStatus.ENTWURF) {
+        throw new ConflictException(
+          'Der Servicebericht ist abgeschlossen und kann nicht mehr geändert werden.',
+        );
+      }
+
+      const materials = await tx.serviceReportMaterial.findMany({
+        where: { reportId: id, articleId: { not: null } },
+        include: { article: true },
+      });
+
       if (dto.deductStock !== false) {
         for (const material of materials) {
           if (!material.article?.stockManaged) continue;

@@ -224,25 +224,37 @@ export class ArticlesService {
    * gibt `quantity` den gezählten Bestand an, sonst die Bewegungsmenge.
    */
   async recordMovement(articleId: string, dto: StockMovementDto, userId?: string) {
-    const article = await prisma.article.findUnique({ where: { id: articleId } });
-    if (!article) {
-      throw new NotFoundException('Der Artikel wurde nicht gefunden.');
-    }
-    if (!article.stockManaged) {
-      throw new BadRequestException('Der Artikel wird nicht bestandsgeführt.');
-    }
-
-    const current = article.stock.toNumber();
-    const stockAfter = this.applyMovement(current, dto);
-
-    if (stockAfter < 0) {
-      throw new BadRequestException(
-        `Der Bestand würde negativ (${round(stockAfter)}). Verfügbar sind ${round(current)} ` +
-          `${article.unit}.`,
-      );
-    }
-
     return prisma.$transaction(async (tx) => {
+      // Die Artikelzeile bis zum Ende der Transaktion sperren und erst danach
+      // lesen.
+      //
+      // Der neue Bestand wird ausgerechnet und als fester Wert geschrieben –
+      // eine Inventur ersetzt ihn ja, sie zählt nicht dazu. Damit hängt alles
+      // daran, dass zwischen Lesen und Schreiben niemand dazwischenkommt.
+      // Vorher lagen Lesen und Prüfen davor: Zwei gleichzeitige Bewegungen
+      // gingen beide vom selben Bestand aus, und die zweite überschrieb die
+      // erste. Auch die Prüfung auf negativen Bestand rechnete dann mit einem
+      // überholten Wert.
+      await tx.$queryRaw`SELECT id FROM articles WHERE id = ${articleId} FOR UPDATE`;
+
+      const article = await tx.article.findUnique({ where: { id: articleId } });
+      if (!article) {
+        throw new NotFoundException('Der Artikel wurde nicht gefunden.');
+      }
+      if (!article.stockManaged) {
+        throw new BadRequestException('Der Artikel wird nicht bestandsgeführt.');
+      }
+
+      const current = article.stock.toNumber();
+      const stockAfter = this.applyMovement(current, dto);
+
+      if (stockAfter < 0) {
+        throw new BadRequestException(
+          `Der Bestand würde negativ (${round(stockAfter)}). Verfügbar sind ${round(current)} ` +
+            `${article.unit}.`,
+        );
+      }
+
       await tx.article.update({ where: { id: articleId }, data: { stock: stockAfter } });
 
       return tx.stockMovement.create({
