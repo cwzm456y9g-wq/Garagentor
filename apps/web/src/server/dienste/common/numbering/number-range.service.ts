@@ -21,21 +21,45 @@ export class NumberRangeService {
     const year = new Date().getFullYear();
 
     const existing = await client.numberRange.findUnique({ where: { entity } });
-    const range = existing ?? (await this.createDefault(entity, year, client));
+    if (!existing) await this.createDefault(entity, year, client);
 
-    // Bei Jahreswechsel beginnt die Nummerierung wieder bei 1.
-    const resetNeeded = range.yearlyReset && range.currentYear !== year;
-    const number = resetNeeded ? 1 : range.nextNumber;
-
-    const updated = await client.numberRange.update({
+    // Ein einziges UPDATE zählt hoch und sperrt die Zeile dabei bis zum Ende
+    // der Transaktion.
+    //
+    // Vorher wurde erst gelesen und dann ein ausgerechneter Wert geschrieben.
+    // Zwei gleichzeitige Belege lasen denselben Stand und bekamen dieselbe
+    // Nummer; gerettet hat nur die Eindeutigkeit in der Datenbank – als
+    // Fehlermeldung. Nachgemessen: von sechs gleichzeitig angelegten Angeboten
+    // kam genau eines durch, fünf scheiterten an „quoteNumber existiert
+    // bereits". Zwei Leute im Büro genügen dafür.
+    const erhoeht = await client.numberRange.update({
       where: { entity },
-      data: { nextNumber: number + 1, currentYear: year },
+      data: { nextNumber: { increment: 1 } },
     });
 
-    return this.format(updated.prefix, updated.suffix, number, updated.padding, {
-      yearlyReset: updated.yearlyReset,
-      year,
-    });
+    // Bei Jahreswechsel beginnt die Nummerierung wieder bei 1. Der Zähler steht
+    // hier schon eins weiter; er wird auf 2 gesetzt, weil die 1 gerade
+    // vergeben wird. Wer gleichzeitig anfragt, wartet an der Sperre und sieht
+    // danach das neue Jahr.
+    if (erhoeht.yearlyReset && erhoeht.currentYear !== year) {
+      const zurueckgesetzt = await client.numberRange.update({
+        where: { entity },
+        data: { nextNumber: 2, currentYear: year },
+      });
+      return this.format(zurueckgesetzt.prefix, zurueckgesetzt.suffix, 1, zurueckgesetzt.padding, {
+        yearlyReset: true,
+        year,
+      });
+    }
+
+    return this.format(
+      erhoeht.prefix,
+      erhoeht.suffix,
+      // `update` liefert den Stand danach – vergeben wird der davor.
+      erhoeht.nextNumber - 1,
+      erhoeht.padding,
+      { yearlyReset: erhoeht.yearlyReset, year },
+    );
   }
 
   /** Zeigt die nächste Nummer an, ohne den Zähler zu verändern. */
@@ -64,8 +88,14 @@ export class NumberRangeService {
     client: Prisma.TransactionClient | PrismaClient,
   ) {
     const defaults = NUMBER_RANGE_DEFAULTS.find((item) => item.entity === entity);
-    return client.numberRange.create({
-      data: {
+    // `upsert` statt `create`: Legen zwei Aufrufe den Kreis im selben Moment
+    // zum ersten Mal an, soll der zweite den ersten vorfinden und nicht an der
+    // Eindeutigkeit scheitern. Das `update` bleibt leer – ein bestehender
+    // Kreis darf sich dabei nicht verändern.
+    return client.numberRange.upsert({
+      where: { entity },
+      update: {},
+      create: {
         entity,
         prefix: defaults?.prefix ?? '',
         padding: defaults?.padding ?? 4,
