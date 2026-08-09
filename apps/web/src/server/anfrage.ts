@@ -1,5 +1,5 @@
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, type Paginated } from '@garagentor/shared';
-import { z, type ZodType } from 'zod';
+import { z, type ZodType, type ZodTypeDef } from 'zod';
 import { HttpFehler, ungueltig } from './fehler';
 
 /** Übliche Obergrenze für Anfragerümpfe. */
@@ -20,11 +20,11 @@ export const RUMPF_GROSS = 1024 * 1024;
  * NestJS pfadabhängig war und es bleiben soll: 100 kB überall, ein Megabyte
  * dort, wo Logo oder Unterschrift mitkommen.
  */
-export async function rumpf<T>(
+export async function rumpf<Aus, Ein>(
   anfrage: Request,
-  schema: ZodType<T>,
+  schema: ZodType<Aus, ZodTypeDef, Ein>,
   grenze = RUMPF_STANDARD,
-): Promise<T> {
+): Promise<Aus> {
   const angekuendigt = anfrage.headers.get('content-length');
   if (angekuendigt && Number.parseInt(angekuendigt, 10) > grenze) {
     throw new HttpFehler(413, `Die Anfrage ist größer als ${Math.round(grenze / 1024)} kB.`);
@@ -50,7 +50,7 @@ export async function rumpf<T>(
 }
 
 /** Prüft die Abfrageparameter gegen ein Schema. */
-export function abfrage<T>(anfrage: Request, schema: ZodType<T>): T {
+export function abfrage<Aus, Ein>(anfrage: Request, schema: ZodType<Aus, ZodTypeDef, Ein>): Aus {
   const parameter = new URL(anfrage.url).searchParams;
   const roh: Record<string, string | string[]> = {};
   for (const schluessel of new Set(parameter.keys())) {

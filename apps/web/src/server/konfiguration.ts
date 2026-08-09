@@ -24,17 +24,27 @@ export interface Konfiguration {
      */
     dienstSchluessel: string | null;
   };
+  /**
+   * Postausgang. Die Feldnamen folgen hier den Umgebungsvariablen
+   * (`MAIL_SECURE`, `MAIL_FROM` …), damit beim Eintragen in hPanel klar ist,
+   * welcher Wert wohin gehört.
+   *
+   * Die Zugangsdaten stehen bewusst in der Umgebung und nicht in den
+   * Einstellungen: sie gehören nicht in die Datenbank und nicht in eine
+   * Sicherung, die jemand herumreicht. Ohne `host` ist der Versand schlicht
+   * nicht eingerichtet – die Anwendung läuft trotzdem.
+   */
   mail: {
     host: string | null;
     port: number;
     /** Verschlüsselte Verbindung ab dem ersten Byte (Port 465). */
-    sicher: boolean;
-    benutzer: string | null;
-    passwort: string | null;
-    von: string | null;
-    antwortAn: string | null;
+    secure: boolean;
+    user: string | null;
+    password: string | null;
+    from: string | null;
+    replyTo: string | null;
     /** Stille Kopie an den eigenen Posteingang, etwa fürs Archiv. */
-    blindkopie: string | null;
+    bcc: string | null;
   };
   /**
    * Geheimnis, mit dem sich der nächtliche Cron-Aufruf ausweist. Die Jobs
@@ -97,12 +107,12 @@ export function konfiguration(): Konfiguration {
       port: Number.parseInt(process.env.MAIL_PORT ?? '587', 10),
       // Port 465 spricht von Anfang an TLS, 587 beginnt offen und wechselt per
       // STARTTLS. Wer das verwechselt, bekommt eine Zeitüberschreitung.
-      sicher: process.env.MAIL_SECURE === 'true' || process.env.MAIL_PORT === '465',
-      benutzer: process.env.MAIL_USER?.trim() || null,
-      passwort: process.env.MAIL_PASSWORD || null,
-      von: process.env.MAIL_FROM?.trim() || null,
-      antwortAn: process.env.MAIL_REPLY_TO?.trim() || null,
-      blindkopie: process.env.MAIL_BCC?.trim() || null,
+      secure: process.env.MAIL_SECURE === 'true' || process.env.MAIL_PORT === '465',
+      user: process.env.MAIL_USER?.trim() || null,
+      password: process.env.MAIL_PASSWORD || null,
+      from: process.env.MAIL_FROM?.trim() || null,
+      replyTo: process.env.MAIL_REPLY_TO?.trim() || null,
+      bcc: process.env.MAIL_BCC?.trim() || null,
     },
     cronGeheimnis: process.env.CRON_SECRET?.trim() || null,
   };
