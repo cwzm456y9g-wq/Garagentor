@@ -179,43 +179,88 @@ export class DunningService {
 
   /** Legt eine Mahnung für eine einzelne Rechnung an, unabhängig vom Lauf. */
   async createForInvoice(invoiceId: string, level?: DunningLevel) {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      include: { customer: true, dunnings: true },
-    });
-    if (!invoice) {
-      throw new NotFoundException('Die Rechnung wurde nicht gefunden.');
-    }
-    if (!OPEN_STATUSES.includes(invoice.status)) {
-      throw new ConflictException('Nur offene Rechnungen können gemahnt werden.');
-    }
-
-    // Über openAmountOf, damit ein verrechneter Abschlag abgezogen bleibt.
-    const open = openAmountOf(invoice);
-    if (open <= 0) {
-      throw new ConflictException('Die Rechnung weist keinen offenen Betrag auf.');
-    }
-
+    // Stufen und Zinssatz sind Einstellungen, keine Eigenschaften der
+    // Rechnung – sie dürfen außerhalb der Sperre gelesen werden.
     const stages = await this.stages();
-    const now = new Date();
-    const stage = level
-      ? (stages.find((item) => item.level === level) ?? {
-          level,
-          daysOverdue: 0,
-          fee: 0,
-          zinsen: true,
-          graceDays: 7,
-        })
-      : this.nextStage(stages, invoice.dunningLevel, invoice.dueDate, now);
-
-    if (!stage) {
-      throw new ConflictException('Für diese Rechnung ist derzeit keine Mahnstufe fällig.');
-    }
-
     const interest = await this.interestConfig();
-    const candidate = this.buildDunning(invoice, open, stage, now, interest);
+    const now = new Date();
 
     return prisma.$transaction(async (tx) => {
+      // Die Rechnungszeile bis zum Ende der Transaktion sperren und erst
+      // danach lesen.
+      //
+      // Die Mahnstufe leitet sich aus der bisherigen ab. Wurde sie außerhalb
+      // gelesen, sahen zwei gleichzeitige Aufrufe dieselbe Stufe und legten
+      // beide dieselbe an – der nächtliche Lauf und ein Klick im Büro treffen
+      // sich dafür schon. Zwei Mahnungen wurden daraus nicht, dafür sorgt
+      // @@unique([invoiceId, level]) in der Datenbank; aber die zweite kam als
+      // nackter „Datensatz existiert bereits"-Fehler zurück, der niemandem
+      // sagt, was los ist.
+      await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${invoiceId} FOR UPDATE`;
+
+      const invoice = await tx.invoice.findUnique({
+        where: { id: invoiceId },
+        // Nach Datum absteigend, damit „die letzte Mahnung" unten auch die
+        // letzte ist – ohne Sortierung ist die Reihenfolge beliebig.
+        include: { customer: true, dunnings: { orderBy: { date: 'desc' } } },
+      });
+      if (!invoice) {
+        throw new NotFoundException('Die Rechnung wurde nicht gefunden.');
+      }
+      if (!OPEN_STATUSES.includes(invoice.status)) {
+        throw new ConflictException('Nur offene Rechnungen können gemahnt werden.');
+      }
+
+      // Über openAmountOf, damit ein verrechneter Abschlag abgezogen bleibt.
+      const open = openAmountOf(invoice);
+      if (open <= 0) {
+        throw new ConflictException('Die Rechnung weist keinen offenen Betrag auf.');
+      }
+
+      // Solange die Frist der letzten Mahnung läuft, wird nicht erneut
+      // gemahnt – dieselbe Regel, nach der auch der nächtliche Lauf arbeitet.
+      // Von Hand gefehlt hat sie bisher: Zwei Klicks kurz nacheinander haben
+      // den Kunden von der Zahlungserinnerung direkt auf die erste Mahnung
+      // gehoben, samt Gebühr und Verzugszinsen. Wer eine Stufe ausdrücklich
+      // angibt, meint es dagegen so.
+      const letzte = invoice.dunnings.find(
+        (vorhanden) => vorhanden.status !== DunningStatus.ABGEBROCHEN,
+      );
+      if (!level && letzte && letzte.dueDate > now) {
+        throw new ConflictException(
+          `Die Frist der letzten Mahnung läuft noch bis zum ${letzte.dueDate.toLocaleDateString('de-DE')}.`,
+        );
+      }
+
+      const stage = level
+        ? (stages.find((item) => item.level === level) ?? {
+            level,
+            daysOverdue: 0,
+            fee: 0,
+            zinsen: true,
+            graceDays: 7,
+          })
+        : this.nextStage(stages, invoice.dunningLevel, invoice.dueDate, now);
+
+      if (!stage) {
+        throw new ConflictException('Für diese Rechnung ist derzeit keine Mahnstufe fällig.');
+      }
+
+      // Eine Stufe wird nicht zweimal gemahnt. Bei ausdrücklich angeforderter
+      // Stufe fällt das sonst gar nicht auf: `nextStage` würde sie überspringen,
+      // die Angabe von Hand nicht.
+      const bereits = invoice.dunnings.find(
+        (vorhanden) =>
+          vorhanden.level === stage.level && vorhanden.status !== DunningStatus.ERLEDIGT,
+      );
+      if (bereits) {
+        throw new ConflictException(
+          `Zur Rechnung ${invoice.invoiceNumber} besteht bereits eine Mahnung der Stufe ${stage.level}.`,
+        );
+      }
+
+      const candidate = this.buildDunning(invoice, open, stage, now, interest);
+
       const dunning = await tx.dunning.create({
         data: {
           invoiceId,

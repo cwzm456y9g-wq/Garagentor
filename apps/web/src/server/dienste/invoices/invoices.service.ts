@@ -256,59 +256,79 @@ export class InvoicesService {
    * werden abgewiesen, damit der offene Posten nicht negativ wird.
    */
   async addPayment(id: string, dto: CreatePaymentDto) {
-    const invoice = await prisma.invoice.findUnique({ where: { id } });
-    if (!invoice) {
-      throw new NotFoundException('Die Rechnung wurde nicht gefunden.');
-    }
-    if (invoice.status === InvoiceStatus.ENTWURF) {
-      throw new ConflictException('Zu einem Rechnungsentwurf kann keine Zahlung gebucht werden.');
-    }
-    if (invoice.status === InvoiceStatus.STORNIERT) {
-      throw new ConflictException(
-        'Zu einer stornierten Rechnung kann keine Zahlung gebucht werden.',
-      );
-    }
-
-    const open = this.openAmount(invoice);
-    if (dto.amount > open + 0.01) {
-      throw new BadRequestException(
-        `Der Zahlbetrag übersteigt den offenen Betrag von ${open.toFixed(2)} €.`,
-      );
-    }
-
     const zahlungsdatum = dto.date ? new Date(dto.date) : new Date();
+    // Die Skonto-Toleranz ist eine Einstellung, keine Eigenschaft der
+    // Rechnung – sie darf außerhalb der Sperre gelesen werden.
     const toleranz = await this.skontoToleranz();
 
-    // Skonto steht nur zu, wenn fristgerecht gezahlt wurde. Außerhalb der
-    // Frist geht der Abgleich mit null Abzug hinein und wertet eine geminderte
-    // Zahlung damit als Unterzahlung.
-    const skontosatz = invoice.skontoPercent.toNumber();
-    const skontotage = invoice.skontoDays;
-    const zulaessig =
-      skontosatz > 0 && withinSkontoPeriod(zahlungsdatum, invoice.date, skontotage)
-        ? skontoAmount(payableAmountOf(invoice), skontosatz)
-        : 0;
-
-    const abgleich = abgleichMitSkonto({
-      offen: open,
-      zahlung: dto.amount,
-      skonto: zulaessig,
-      toleranz,
-    });
-
     return prisma.$transaction(async (tx) => {
+      // Die Rechnungszeile bis zum Ende der Transaktion sperren und erst
+      // danach lesen.
+      //
+      // Vorher standen Prüfung und Rechnen davor, geschrieben wurde ein
+      // ausgerechneter Gesamtbetrag. Zwei gleichzeitige Zahlungen sahen beide
+      // denselben offenen Posten: Bei 1.000 € offen kamen zweimal 600 € durch,
+      // und die zweite Buchung überschrieb die erste – zwei Zahlungen über
+      // zusammen 1.200 € in der Liste, aber 600 € als gezahlt vermerkt. Ein
+      // Doppelklick genügt dafür.
+      await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${id} FOR UPDATE`;
+
+      const invoice = await tx.invoice.findUnique({ where: { id } });
+      if (!invoice) {
+        throw new NotFoundException('Die Rechnung wurde nicht gefunden.');
+      }
+      if (invoice.status === InvoiceStatus.ENTWURF) {
+        throw new ConflictException('Zu einem Rechnungsentwurf kann keine Zahlung gebucht werden.');
+      }
+      if (invoice.status === InvoiceStatus.STORNIERT) {
+        throw new ConflictException(
+          'Zu einer stornierten Rechnung kann keine Zahlung gebucht werden.',
+        );
+      }
+
+      const open = this.openAmount(invoice);
+      if (dto.amount > open + 0.01) {
+        throw new BadRequestException(
+          `Der Zahlbetrag übersteigt den offenen Betrag von ${open.toFixed(2)} €.`,
+        );
+      }
+
+      // Skonto steht nur zu, wenn fristgerecht gezahlt wurde. Außerhalb der
+      // Frist geht der Abgleich mit null Abzug hinein und wertet eine
+      // geminderte Zahlung damit als Unterzahlung.
+      const skontosatz = invoice.skontoPercent.toNumber();
+      const zulaessig =
+        skontosatz > 0 && withinSkontoPeriod(zahlungsdatum, invoice.date, invoice.skontoDays)
+          ? skontoAmount(payableAmountOf(invoice), skontosatz)
+          : 0;
+
+      const abgleich = abgleichMitSkonto({
+        offen: open,
+        zahlung: dto.amount,
+        skonto: zulaessig,
+        toleranz,
+      });
+
       await tx.payment.create({
         data: {
           invoiceId: id,
           amount: dto.amount,
-          date: dto.date ? new Date(dto.date) : new Date(),
+          date: zahlungsdatum,
           method: dto.method ?? 'UEBERWEISUNG',
           reference: dto.reference ?? null,
           notes: dto.notes ?? null,
         },
       });
 
-      const paidAmount = round(invoice.paidAmount.toNumber() + dto.amount);
+      // Die Summe kommt aus den Zahlungen selbst, nicht aus dem fortge-
+      // schriebenen Feld. Was gebucht ist, steht in der Liste – das Feld ist
+      // nur die Zusammenfassung und darf ihr nicht widersprechen.
+      const summe = await tx.payment.aggregate({
+        where: { invoiceId: id },
+        _sum: { amount: true },
+      });
+
+      const paidAmount = round(summe._sum.amount?.toNumber() ?? 0);
       const fullyPaid = abgleich.ausgeglichen;
       const skonto = round(invoice.skontoAmount.toNumber() + abgleich.skonto);
 
@@ -350,19 +370,28 @@ export class InvoicesService {
   }
 
   async removePayment(id: string, paymentId: string) {
-    const payment = await prisma.payment.findFirst({
-      where: { id: paymentId, invoiceId: id },
-    });
-    if (!payment) {
-      throw new NotFoundException('Die Zahlung wurde nicht gefunden.');
-    }
-
-    const invoice = await prisma.invoice.findUniqueOrThrow({ where: { id } });
-
     return prisma.$transaction(async (tx) => {
+      // Dieselbe Sperre wie beim Buchen: Sonst könnten Löschen und Buchen
+      // einander überschreiben.
+      await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${id} FOR UPDATE`;
+
+      const payment = await tx.payment.findFirst({
+        where: { id: paymentId, invoiceId: id },
+      });
+      if (!payment) {
+        throw new NotFoundException('Die Zahlung wurde nicht gefunden.');
+      }
+
+      const invoice = await tx.invoice.findUniqueOrThrow({ where: { id } });
+
       await tx.payment.delete({ where: { id: paymentId } });
 
-      const paidAmount = round(invoice.paidAmount.toNumber() - payment.amount.toNumber());
+      const summe = await tx.payment.aggregate({
+        where: { invoiceId: id },
+        _sum: { amount: true },
+      });
+
+      const paidAmount = round(summe._sum.amount?.toNumber() ?? 0);
       const overdue = invoice.dueDate < new Date();
 
       return tx.invoice.update({
