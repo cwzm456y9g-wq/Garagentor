@@ -247,40 +247,58 @@ export class PurchasingService {
    * erhalten je Position eine Lagerbewegung.
    */
   async receiveDelivery(id: string, dto: ReceiveDeliveryDto, userId?: string) {
-    const order = await prisma.purchaseOrder.findUnique({
-      where: { id },
-      include: { items: { include: { article: true } } },
-    });
-    if (!order) {
-      throw new NotFoundException('Die Bestellung wurde nicht gefunden.');
-    }
-    if (order.status === PurchaseOrderStatus.ENTWURF) {
-      throw new ConflictException('Die Bestellung wurde noch nicht aufgegeben.');
-    }
-    if (order.status === PurchaseOrderStatus.STORNIERT) {
-      throw new ConflictException('Die Bestellung ist storniert.');
-    }
-
-    const byId = new Map(order.items.map((item) => [item.id, item]));
     const date = dto.date ? new Date(dto.date) : new Date();
 
-    for (const receipt of dto.items) {
-      const item = byId.get(receipt.itemId);
-      if (!item) {
-        throw new BadRequestException(
-          `Die Bestellposition ${receipt.itemId} gehört nicht zur Bestellung.`,
-        );
-      }
-
-      const open = item.quantity.toNumber() - item.deliveredQuantity.toNumber();
-      if (receipt.quantity > open + 0.001) {
-        throw new BadRequestException(
-          `Für "${item.title}" sind nur noch ${round(open, 3)} ${item.unit} offen.`,
-        );
-      }
-    }
-
     return prisma.$transaction(async (tx) => {
+      // Die Bestellzeile bis zum Ende der Transaktion sperren und erst danach
+      // lesen und prüfen.
+      //
+      // Vorher stand die Prüfung davor: Was noch offen ist, wurde aus einem
+      // Stand gelesen, den ein zweiter Aufruf längst überholt haben konnte.
+      // Zwei gleichzeitige Wareneingänge sahen dann beide dieselbe offene
+      // Menge, kamen beide durch, und aus zehn bestellten Rollen wurden zwanzig
+      // gelieferte – mit zwei Lagerbewegungen und einem Bestand, der nicht mehr
+      // stimmt. Nachgestellt und nachgemessen: 7 Stück vor, 27 danach.
+      await tx.$queryRaw`SELECT id FROM purchase_orders WHERE id = ${id} FOR UPDATE`;
+
+      const order = await tx.purchaseOrder.findUnique({
+        where: { id },
+        include: { items: { include: { article: true } } },
+      });
+      if (!order) {
+        throw new NotFoundException('Die Bestellung wurde nicht gefunden.');
+      }
+      if (order.status === PurchaseOrderStatus.ENTWURF) {
+        throw new ConflictException('Die Bestellung wurde noch nicht aufgegeben.');
+      }
+      if (order.status === PurchaseOrderStatus.STORNIERT) {
+        throw new ConflictException('Die Bestellung ist storniert.');
+      }
+
+      const byId = new Map(order.items.map((item) => [item.id, item]));
+
+      // Nennt die Meldung dieselbe Position mehrfach, zählt die Summe. Einzeln
+      // geprüft kämen zweimal sechs von zehn offenen Stück beide durch.
+      const jePosition = new Map<string, number>();
+      for (const receipt of dto.items) {
+        if (!byId.has(receipt.itemId)) {
+          throw new BadRequestException(
+            `Die Bestellposition ${receipt.itemId} gehört nicht zur Bestellung.`,
+          );
+        }
+        jePosition.set(receipt.itemId, (jePosition.get(receipt.itemId) ?? 0) + receipt.quantity);
+      }
+
+      for (const [itemId, menge] of jePosition) {
+        const item = byId.get(itemId)!;
+        const open = item.quantity.toNumber() - item.deliveredQuantity.toNumber();
+        if (menge > open + 0.001) {
+          throw new BadRequestException(
+            `Für "${item.title}" sind nur noch ${round(open, 3)} ${item.unit} offen.`,
+          );
+        }
+      }
+
       for (const receipt of dto.items) {
         const item = byId.get(receipt.itemId)!;
 
