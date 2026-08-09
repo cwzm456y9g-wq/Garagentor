@@ -30,7 +30,7 @@ jobs:
         run: npm run build:shared
 
       - name: Prisma Client erzeugen
-        run: npm run db:generate --workspace @garagentor/api --if-present
+        run: npm run db:generate --workspace @garagentor/web --if-present
 
       - name: Formatierung prüfen
         run: npm run format:check

@@ -1,8 +1,7 @@
 import { prisma } from '@/server/prisma';
 import { randomUUID } from 'node:crypto';
-import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
+import { extname } from 'node:path';
+import { ablegen, entfernen, lesen } from '@/server/ablage';
 import { BadRequestException, Logger, NotFoundException } from '@/server/nest-ersatz';
 import type { Paginated } from '@garagentor/shared';
 import { DocumentCategory, type EntityType, type Prisma } from '@prisma/client';
@@ -56,12 +55,13 @@ const ALLOWED_EXTENSIONS = new Set([
 
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
+  /**
+   * Konfiguration erst beim Zugriff lesen, nicht beim Laden des Moduls.
+   * Next.js lädt jede Route schon während `next build`; als Feld bräuchte der
+   * Bau bereits die Produktivgeheimnisse.
+   */
   private get config() {
     return konfiguration();
-  }
-
-  private get uploadRoot(): string {
-    return resolve(this.config.uploads.dir);
   }
 
   async findAll(query: DocumentQueryDto): Promise<Paginated<unknown>> {
@@ -133,9 +133,7 @@ export class DocumentsService {
     const filename = `${randomUUID()}${extension}`;
     const storagePath = `${folder}/${filename}`;
 
-    const absoluteFolder = join(this.uploadRoot, folder);
-    await mkdir(absoluteFolder, { recursive: true });
-    await writeFile(join(absoluteFolder, filename), file.buffer);
+    await ablegen(storagePath, file.buffer, file.mimetype);
 
     return prisma.document.create({
       data: {
@@ -155,21 +153,13 @@ export class DocumentsService {
     });
   }
 
-  /** Liefert Dateipfad und Metadaten für den Download. */
-  async fileFor(
-    id: string,
-  ): Promise<{ path: string; document: Awaited<ReturnType<DocumentsService['findOne']>> }> {
+  /** Liefert Inhalt und Metadaten für den Download. */
+  async fileFor(id: string): Promise<{
+    inhalt: Buffer;
+    document: Awaited<ReturnType<DocumentsService['findOne']>>;
+  }> {
     const document = await this.findOne(id);
-    const path = this.absolutePath(document.storagePath);
-
-    if (!existsSync(path)) {
-      throw new NotFoundException('Die Datei ist nicht mehr vorhanden.');
-    }
-    return { path, document };
-  }
-
-  createReadStream(path: string) {
-    return createReadStream(path);
+    return { inhalt: await lesen(document.storagePath), document };
   }
 
   async update(id: string, dto: UpdateDocumentDto) {
@@ -196,7 +186,7 @@ export class DocumentsService {
     // Der Datenbankeintrag ist maßgeblich; eine fehlende Datei blockiert das
     // Löschen nicht.
     try {
-      await unlink(this.absolutePath(document.storagePath));
+      await entfernen(document.storagePath);
     } catch (error) {
       this.logger.warn(`Datei ${document.storagePath} konnte nicht entfernt werden: ${error}`);
     }
@@ -234,7 +224,7 @@ export class DocumentsService {
     const images = await Promise.all(
       documents.map(async (document) => {
         try {
-          const bytes = await readFile(this.absolutePath(document.storagePath));
+          const bytes = await lesen(document.storagePath);
           return {
             id: document.id,
             entityRef: document.entityRef,
@@ -249,18 +239,6 @@ export class DocumentsService {
     );
 
     return images.filter((image): image is NonNullable<typeof image> => image !== null);
-  }
-
-  /**
-   * Löst den Ablagepfad auf und stellt sicher, dass er innerhalb des
-   * Upload-Verzeichnisses liegt.
-   */
-  private absolutePath(storagePath: string): string {
-    const path = resolve(join(this.uploadRoot, storagePath));
-    if (!path.startsWith(this.uploadRoot)) {
-      throw new BadRequestException('Ungültiger Ablagepfad.');
-    }
-    return path;
   }
 }
 

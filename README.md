@@ -8,11 +8,16 @@ nach **ASR A1.7** und digitalen Serviceberichten.
 
 | Pfad              | Paket                | Inhalt                                                |
 | ----------------- | -------------------- | ----------------------------------------------------- |
-| `apps/api`        | `@garagentor/api`    | NestJS-Backend mit Prisma und PostgreSQL              |
-| `apps/web`        | `@garagentor/web`    | Next.js-Frontend (App Router)                         |
+| `apps/web`        | `@garagentor/web`    | Die Anwendung: Oberfläche und API in einem Prozess    |
 | `packages/shared` | `@garagentor/shared` | Enums, Typen, Beleg- und Datumslogik für beide Seiten |
+| `tools`           | –                    | Umzugsskript und Paketierung für Hostinger            |
 
 Verwaltet mit npm-Workspaces – installiert wird ausschließlich im Wurzelverzeichnis.
+
+Oberfläche und Schnittstelle liegen bewusst in **einer** Anwendung: Das Ziel ist
+Hostingers Node.js-Webhosting, und das gibt in der Regel eine Node-Anwendung pro
+Domain her. Die API erreichst du unter `/api`. Die Datenbank ist Supabase in
+Frankfurt; Einzelheiten in [`docs/betrieb.md`](docs/betrieb.md).
 
 ## Fachlicher Umfang
 
@@ -91,7 +96,7 @@ baut es vorab und hält es anschließend im Watch-Modus.
 | `npm run db:migrate`   | Prisma-Migrationen anwenden                        |
 | `npm run db:seed`      | Demodaten einspielen                               |
 
-Im Workspace `@garagentor/api` legt `npm run db:admin` den ersten Administrator
+Im Workspace `@garagentor/web` legt `npm run db:admin` den ersten Administrator
 an; erwartet werden `ADMIN_EMAIL` und `ADMIN_PASSWORD`.
 
 ## Produktivbetrieb
@@ -121,7 +126,7 @@ beendet dabei alle offenen Sitzungen des Kontos:
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod \
   run --rm -e ADMIN_EMAIL=chefin@example.de -e ADMIN_PASSWORD='…' \
-  migrate npm run db:admin --workspace @garagentor/api
+  migrate npm run db:admin --workspace @garagentor/web
 ```
 
 Datenbank, API und Oberfläche hängen nur am internen Netz; von außen ist allein

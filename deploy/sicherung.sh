@@ -1,72 +1,66 @@
 #!/usr/bin/env bash
 #
-# Sichert Datenbank und Dokumentenablage in ein Verzeichnis und räumt alte
-# Stände auf. Gedacht für einen nächtlichen Cron-Eintrag auf dem Server:
+# Sichert die Supabase-Datenbank in ein Verzeichnis und räumt alte Stände auf.
 #
-#   0 2 * * *  /opt/garagentor/deploy/sicherung.sh >> /var/log/garagentor-sicherung.log 2>&1
+# Gedacht für einen nächtlichen Cron-Eintrag – auf deinem Rechner, einem NAS
+# oder einem kleinen Server. Nicht auf Hostingers Webhosting: dort steht
+# `pg_dump` in der Regel nicht zur Verfügung.
 #
-# Das Zielverzeichnis darf ein synchronisierter Ordner sein (iCloud Drive,
-# Nextcloud, ein eingebundener Netzspeicher). Wichtig: eine synchronisierte
-# Kopie ersetzt keine revisionssichere Ablage – für Buchungsbelege gelten
-# eigene Aufbewahrungs- und Unveränderbarkeitspflichten.
+#   0 2 * * *  /pfad/zu/sicherung.sh >> /var/log/garagentor-sicherung.log 2>&1
+#
+# Warum überhaupt selbst sichern: Der Free-Plan von Supabase sichert nur
+# eingeschränkt und kennt keine Wiederherstellung auf den Zeitpunkt. Für
+# Buchungsbelege gilt eine zehnjährige Aufbewahrungspflicht – die trägt kein
+# Tarif, der Projekte nach einer Woche Ruhe pausiert.
+#
+# Wichtig: Eine synchronisierte Kopie (iCloud, Nextcloud) ersetzt keine
+# revisionssichere Ablage. Für Buchungsbelege gelten eigene Aufbewahrungs- und
+# Unveränderbarkeitspflichten; die Sicherung hier schützt vor Datenverlust,
+# nicht vor einer Betriebsprüfung.
 
 set -euo pipefail
 
-PROJEKT_VERZEICHNIS="${PROJEKT_VERZEICHNIS:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Die direkte Verbindung (Port 5432), nicht der Pooler: pg_dump braucht eine
+# Sitzung, die der Pooler im Transaction mode nicht durchreicht.
+: "${DIRECT_URL:?DIRECT_URL muss gesetzt sein – die direkte Supabase-Verbindung}"
 
-# Benutzer und Datenbankname stehen in der .env.prod; docker compose reicht
-# sie nur an die Container weiter, nicht an dieses Skript.
-if [ -f "${PROJEKT_VERZEICHNIS}/.env.prod" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "${PROJEKT_VERZEICHNIS}/.env.prod"
-  set +a
+ZIEL="${SICHERUNG_ZIEL:-$HOME/garagentor-sicherungen}"
+BEHALTEN_TAGE="${SICHERUNG_BEHALTEN_TAGE:-30}"
+
+STAND="$(date +%Y-%m-%d_%H%M)"
+mkdir -p "$ZIEL"
+
+DATEI="$ZIEL/garagentor_$STAND.sql.gz"
+
+echo "[$(date '+%F %T')] Sicherung nach $DATEI"
+
+# --no-owner und --no-privileges: Die Rollen von Supabase gibt es beim
+# Zurückspielen anderswo nicht, und ohne die Angaben scheitert der Import.
+pg_dump "$DIRECT_URL" \
+  --no-owner \
+  --no-privileges \
+  --format=plain \
+  | gzip -9 > "$DATEI.unfertig"
+
+# Erst nach vollständigem Durchlauf umbenennen. Eine abgebrochene Sicherung
+# soll nicht wie eine gültige aussehen.
+mv "$DATEI.unfertig" "$DATEI"
+
+GROESSE="$(du -h "$DATEI" | cut -f1)"
+echo "[$(date '+%F %T')] fertig, $GROESSE"
+
+# Eine Sicherung, die sich nicht lesen lässt, ist keine.
+if ! gzip -t "$DATEI"; then
+  echo "[$(date '+%F %T')] FEHLER: $DATEI ist beschädigt" >&2
+  exit 1
 fi
 
-ZIEL="${ZIEL:-/var/backups/garagentor}"
-AUFBEWAHRUNG_TAGE="${AUFBEWAHRUNG_TAGE:-30}"
-COMPOSE=(docker compose -f "${PROJEKT_VERZEICHNIS}/docker-compose.prod.yml" --env-file "${PROJEKT_VERZEICHNIS}/.env.prod")
+ENTFERNT="$(find "$ZIEL" -name 'garagentor_*.sql.gz' -mtime "+$BEHALTEN_TAGE" -print -delete | wc -l)"
+if [ "$ENTFERNT" -gt 0 ]; then
+  echo "[$(date '+%F %T')] $ENTFERNT Sicherungen älter als $BEHALTEN_TAGE Tage entfernt"
+fi
 
-stempel="$(date +%Y-%m-%d_%H%M)"
-mkdir -p "${ZIEL}"
-
-# In ein temporäres Verzeichnis schreiben und erst am Ende umbenennen, damit
-# ein abgebrochener Lauf keine halbe Sicherung hinterlässt, die der
-# Synchronisationsdienst sofort hochlädt.
-arbeit="$(mktemp -d "${ZIEL}/.lauf-XXXXXX")"
-trap 'rm -rf "${arbeit}"' EXIT
-
-echo "[$(date +%H:%M:%S)] Datenbank sichern …"
-"${COMPOSE[@]}" exec -T postgres pg_dump \
-  --username "${POSTGRES_USER:-garagentor}" \
-  --dbname "${POSTGRES_DB:-garagentor}" \
-  --format=custom \
-  > "${arbeit}/datenbank.dump"
-
-echo "[$(date +%H:%M:%S)] Dokumentenablage sichern …"
-"${COMPOSE[@]}" exec -T api tar -cf - -C /app uploads > "${arbeit}/dokumente.tar"
-
-gzip -9 "${arbeit}/dokumente.tar"
-
-# Die Dateinamen bewusst relativ und ausdrücklich benennen: das Arbeits-
-# verzeichnis wird gleich umbenannt, absolute Pfade wären danach falsch,
-# und ein Glob nähme die Prüfsummendatei selbst mit auf.
-(cd "${arbeit}" && sha256sum datenbank.dump dokumente.tar.gz > pruefsummen.txt)
-
-mv "${arbeit}" "${ZIEL}/${stempel}"
-trap - EXIT
-
-groesse="$(du -sh "${ZIEL}/${stempel}" | cut -f1)"
-echo "[$(date +%H:%M:%S)] Sicherung ${stempel} abgelegt (${groesse})."
-
-# Ältere Stände entfernen. -mindepth 1 -maxdepth 1 trifft nur die
-# Tagesverzeichnisse, nicht deren Inhalt.
-geloescht=0
-while IFS= read -r -d '' alt; do
-  rm -rf "${alt}"
-  geloescht=$((geloescht + 1))
-done < <(find "${ZIEL}" -mindepth 1 -maxdepth 1 -type d -name '20*' -mtime "+${AUFBEWAHRUNG_TAGE}" -print0)
-
-[ "${geloescht}" -gt 0 ] && echo "[$(date +%H:%M:%S)] ${geloescht} Stände älter als ${AUFBEWAHRUNG_TAGE} Tage entfernt."
-
-echo "[$(date +%H:%M:%S)] Fertig."
+# Hochgeladene Dateien liegen in Supabase Storage und werden hier nicht
+# mitgesichert. Sie lassen sich über die Supabase-Oberfläche oder die CLI
+# ausleiten – für Prüfprotokollfotos ist das der zweite Teil der Hausaufgabe.
+echo "[$(date '+%F %T')] Hinweis: Supabase Storage wird von diesem Skript nicht gesichert."

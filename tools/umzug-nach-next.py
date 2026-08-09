@@ -54,6 +54,84 @@ NACHBESSERUNGEN: dict[str, list[tuple[str, str]]] = {
             'async upload(file: Express.Multer.File,',
             'async upload(file: HochgeladeneDatei,',
         ),
+        # Die Ablage liegt in Supabase Storage statt auf der Platte des Servers.
+        (
+            "import { createReadStream, existsSync } from 'node:fs';\n"
+            "import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';\n"
+            "import { extname, join, resolve } from 'node:path';",
+            "import { extname } from 'node:path';\n"
+            "import { ablegen, entfernen, lesen } from '@/server/ablage';",
+        ),
+        (
+            """    const absoluteFolder = join(this.uploadRoot, folder);
+    await mkdir(absoluteFolder, { recursive: true });
+    await writeFile(join(absoluteFolder, filename), file.buffer);""",
+            "    await ablegen(storagePath, file.buffer, file.mimetype);",
+        ),
+        (
+            """  /** Liefert Dateipfad und Metadaten für den Download. */
+  async fileFor(
+    id: string,
+  ): Promise<{ path: string; document: Awaited<ReturnType<DocumentsService['findOne']>> }> {
+    const document = await this.findOne(id);
+    const path = this.absolutePath(document.storagePath);
+
+    if (!existsSync(path)) {
+      throw new NotFoundException('Die Datei ist nicht mehr vorhanden.');
+    }
+    return { path, document };
+  }
+
+  createReadStream(path: string) {
+    return createReadStream(path);
+  }""",
+            """  /** Liefert Inhalt und Metadaten für den Download. */
+  async fileFor(
+    id: string,
+  ): Promise<{
+    inhalt: Buffer;
+    document: Awaited<ReturnType<DocumentsService['findOne']>>;
+  }> {
+    const document = await this.findOne(id);
+    return { inhalt: await lesen(document.storagePath), document };
+  }""",
+        ),
+        (
+            """      await unlink(this.absolutePath(document.storagePath));""",
+            """      await entfernen(document.storagePath);""",
+        ),
+        (
+            """          const bytes = await readFile(this.absolutePath(document.storagePath));""",
+            """          const bytes = await lesen(document.storagePath);""",
+        ),
+        (
+            """  /**
+   * Löst den Ablagepfad auf und stellt sicher, dass er innerhalb des
+   * Upload-Verzeichnisses liegt.
+   */
+  private absolutePath(storagePath: string): string {
+    const path = resolve(join(this.uploadRoot, storagePath));
+    if (!path.startsWith(this.uploadRoot)) {
+      throw new BadRequestException('Ungültiger Ablagepfad.');
+    }
+    return path;
+  }
+}""",
+            "}",
+        ),
+        # Der Konfigurationszugriff bleibt träge, das Upload-Verzeichnis entfällt.
+        (
+            """  private readonly config = konfiguration();
+  private readonly uploadRoot = resolve(this.config.uploads.dir);""",
+            """  /**
+   * Konfiguration erst beim Zugriff lesen, nicht beim Laden des Moduls.
+   * Next.js lädt jede Route schon während `next build`; als Feld bräuchte der
+   * Bau bereits die Produktivgeheimnisse.
+   */
+  private get config() {
+    return konfiguration();
+  }""",
+        ),
         (
             '/** Zulässige Dateitypen der Dokumentenablage. */',
             """/**
@@ -70,19 +148,6 @@ export interface HochgeladeneDatei {
 }
 
 /** Zulässige Dateitypen der Dokumentenablage. */""",
-        ),
-        # Konfiguration erst beim Zugriff lesen: Next.js lädt jede Route schon
-        # während `next build`. Als Feld bräuchte der Bau die Produktivgeheimnisse.
-        (
-            """  private readonly config = konfiguration();
-  private readonly uploadRoot = resolve(this.config.uploads.dir);""",
-            """  private get config() {
-    return konfiguration();
-  }
-
-  private get uploadRoot(): string {
-    return resolve(this.config.uploads.dir);
-  }""",
         ),
     ],
     'auth/users.service.ts': [
@@ -110,7 +175,11 @@ def unbenutzte_importe_entfernen(text: str) -> str:
     """
     def pruefe(m: re.Match) -> str:
         vorn, namen, quelle = m.group(1), m.group(2), m.group(3)
+        # Kommentare zählen nicht als Verwendung: das Wort „Konfiguration" in
+        # einem erklärenden Satz hielte sonst einen toten Import am Leben.
         rumpf = re.sub(r"^import .*?;$", '', text, flags=re.M)
+        rumpf = re.sub(r'/\*.*?\*/', '', rumpf, flags=re.S)
+        rumpf = re.sub(r'//.*$', '', rumpf, flags=re.M)
         behalten = []
         for eintrag in (n.strip() for n in namen.split(',')):
             if not eintrag:

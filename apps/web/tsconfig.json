@@ -23,5 +23,11 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // Eigene Werkzeuge mit eigener Konfiguration: der Seed läuft über ts-node,
+    // die Tests über ts-jest. Beide prüfen ihre Typen selbst.
+    "prisma",
+    "tests"
+  ]
 }

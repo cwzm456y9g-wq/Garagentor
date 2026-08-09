@@ -53,3 +53,4 @@ prisma/*.db-journal
 
 # Lokale Entwicklungseinstellungen des Frontends
 apps/web/.env.local
+paket
