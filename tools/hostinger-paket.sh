@@ -41,6 +41,31 @@ mkdir -p "$ZIEL/apps/web/prisma"
 cp -R "$WURZEL/apps/web/prisma/schema.prisma" "$ZIEL/apps/web/prisma/"
 cp -R "$WURZEL/apps/web/prisma/migrations" "$ZIEL/apps/web/prisma/"
 
+# Ballast entfernen.
+#
+# Next.js legt seinem eigenständigen Bau Dinge bei, die diese Anwendung nicht
+# anfasst. Auf geteiltem Webhosting zählt das doppelt: Der Upload geht über
+# hPanel, und jede Datei zählt gegen das Inode-Kontingent.
+#
+# Jeder Posten ist nachgesehen, nicht vermutet – und nach dem Entfernen ist das
+# Paket erneut gestartet und geprüft worden:
+#
+#   sharp       Bildverarbeitung für `next/image`. Kommt im Quelltext nirgends
+#               vor, und in public/ liegt kein einziges Bild. 32 MB in zwei
+#               Varianten, eine davon für musl (Alpine) – die passt zu keinem
+#               Hostinger-Server.
+#   typescript  Werkzeug zum Übersetzen. Der Bau ist zu diesem Zeitpunkt fertig;
+#               zur Laufzeit ruft es niemand auf. 8,7 MB.
+#
+# Sollte später doch `next/image` dazukommen, gehört sharp wieder hinein –
+# Next.js meldet das dann beim Start unmissverständlich.
+for BALLAST in \
+  "$ZIEL/node_modules/@img" \
+  "$ZIEL/node_modules/sharp" \
+  "$ZIEL/node_modules/typescript"; do
+  rm -rf "$BALLAST"
+done
+
 GROESSE="$(du -sh "$ZIEL" | cut -f1)"
 
 cat <<HINWEIS
