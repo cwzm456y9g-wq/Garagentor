@@ -1,7 +1,15 @@
 import type { ApiErrorBody, AuthTokens, LoginResponse, Paginated } from '@garagentor/shared';
 import { einreihen, istNetzfehler, uebertragen, type WartendeAnfrage } from './offline';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+/**
+ * Die API liegt jetzt in derselben Anwendung, unter `/api`.
+ *
+ * Damit entfällt die Herkunftsprüfung des Browsers vollständig – kein CORS,
+ * keine zweite Adresse in der Umgebung, und der Service Worker sieht die
+ * Anfragen als eigene. Vorher stand hier eine absolute Adresse auf einen
+ * getrennten Dienst.
+ */
+const BASE_URL = '/api';
 
 const ACCESS_KEY = 'garagentor.accessToken';
 const REFRESH_KEY = 'garagentor.refreshToken';
