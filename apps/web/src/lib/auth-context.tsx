@@ -44,8 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const me = await api.get<AuthUser>('/auth/me');
         if (active) setUser(me);
-      } catch {
-        tokenStore.clear();
+        tokenStore.setBenutzer(me);
+      } catch (fehler) {
+        // Nur eine Absage des Servers beendet die Sitzung. War er dagegen
+        // nicht zu erreichen – Funkloch in der Halle, kurzer Ausfall –, gilt
+        // der zuletzt bekannte Benutzer weiter. Vorher warf jeder abgebrochene
+        // Aufruf die Tokens weg und meldete jemanden mitten in der Arbeit ab.
+        const abgelehnt =
+          fehler instanceof ApiError && (fehler.status === 401 || fehler.status === 403);
+        const zwischenstand = tokenStore.benutzer;
+        if (abgelehnt || !zwischenstand) {
+          tokenStore.clear();
+        } else if (active) {
+          setUser(zwischenstand);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -69,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const response = await api.postAnonymous<LoginResponse>('/auth/login', { email, password });
     tokenStore.set(response);
+    tokenStore.setBenutzer(response.user);
     setUser(response.user);
   }, []);
 

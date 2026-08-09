@@ -1,4 +1,10 @@
-import type { ApiErrorBody, AuthTokens, LoginResponse, Paginated } from '@garagentor/shared';
+import type {
+  ApiErrorBody,
+  AuthTokens,
+  AuthUser,
+  LoginResponse,
+  Paginated,
+} from '@garagentor/shared';
 import { einreihen, istNetzfehler, uebertragen, type WartendeAnfrage } from './offline';
 
 /**
@@ -13,6 +19,7 @@ const BASE_URL = '/api';
 
 const ACCESS_KEY = 'garagentor.accessToken';
 const REFRESH_KEY = 'garagentor.refreshToken';
+const BENUTZER_KEY = 'garagentor.benutzer';
 
 /** Fehler der API mit Statuscode und aufbereiteter Meldung. */
 export class ApiError extends Error {
@@ -61,6 +68,29 @@ export const tokenStore = {
     if (typeof window === 'undefined') return;
     window.localStorage.removeItem(ACCESS_KEY);
     window.localStorage.removeItem(REFRESH_KEY);
+    window.localStorage.removeItem(BENUTZER_KEY);
+  },
+
+  /**
+   * Der zuletzt bekannte Benutzer.
+   *
+   * Er liegt neben den Tokens, damit die Anwendung nach einem Neuladen ohne
+   * Netz weiß, wer angemeldet ist. Name, Adresse und Rolle stehen ohnehin im
+   * Token daneben – hier kommt nichts hinzu, was dort nicht schon stünde.
+   */
+  get benutzer(): AuthUser | null {
+    if (typeof window === 'undefined') return null;
+    const roh = window.localStorage.getItem(BENUTZER_KEY);
+    if (!roh) return null;
+    try {
+      return JSON.parse(roh) as AuthUser;
+    } catch {
+      return null;
+    }
+  },
+  setBenutzer(user: AuthUser): void {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(BENUTZER_KEY, JSON.stringify(user));
   },
 };
 
@@ -73,33 +103,47 @@ export function setSessionExpiredHandler(handler: SessionExpiredHandler | null):
 }
 
 /**
+ * Ausgang einer Erneuerung.
+ *
+ * Der Unterschied zwischen `abgelehnt` und `unerreichbar` ist der wichtige:
+ * Nur im ersten Fall hat der Server die Sitzung tatsächlich verweigert. Im
+ * zweiten war er schlicht nicht zu erreichen – dann bleiben die Tokens liegen,
+ * denn ein Funkloch in einer Halle ist kein Grund, jemanden abzumelden.
+ */
+type Erneuerung =
+  { art: 'erneuert'; token: string } | { art: 'abgelehnt' } | { art: 'unerreichbar' };
+
+/**
  * Läuft gerade eine Erneuerung, warten alle weiteren Anfragen auf dasselbe
  * Ergebnis. Sonst würde jede parallele Anfrage den Refresh-Token einlösen und
  * durch die Rotation die Sitzung der übrigen entwerten.
  */
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<Erneuerung> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(): Promise<Erneuerung> {
   const refreshToken = tokenStore.refresh;
-  if (!refreshToken) return null;
+  if (!refreshToken) return { art: 'abgelehnt' };
 
-  refreshInFlight ??= (async () => {
+  refreshInFlight ??= (async (): Promise<Erneuerung> => {
     try {
       const response = await fetch(`${BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
       });
-      if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
         tokenStore.clear();
-        return null;
+        return { art: 'abgelehnt' };
       }
+      // Alles andere (500, 502, 503 …) sagt nichts über die Sitzung aus,
+      // sondern über den Server. Die Tokens bleiben unangetastet.
+      if (!response.ok) return { art: 'unerreichbar' };
 
       const tokens = (await response.json()) as LoginResponse;
       tokenStore.set(tokens);
-      return tokens.accessToken;
+      return { art: 'erneuert', token: tokens.accessToken };
     } catch {
-      return null;
+      return { art: 'unerreichbar' };
     } finally {
       // Erst nach dem Abschluss freigeben, damit wartende Anfragen dasselbe
       // Ergebnis erhalten.
@@ -191,13 +235,20 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (response.status === 401 && !options.anonymous) {
-    const token = await refreshAccessToken();
-    if (token) {
-      response = await send(token);
-    } else {
+    const erneuerung = await refreshAccessToken();
+    if (erneuerung.art === 'erneuert') {
+      response = await send(erneuerung.token);
+    } else if (erneuerung.art === 'abgelehnt') {
       tokenStore.clear();
       onSessionExpired?.();
       throw new ApiError(401, 'Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
+    } else {
+      // Der Server war für die Erneuerung nicht zu erreichen. Die Sitzung
+      // gilt weiter; gemeldet wird der Ausfall, nicht das Abgemeldetsein.
+      throw new ApiError(
+        503,
+        'Der Server ist gerade nicht erreichbar. Bitte in einem Moment erneut versuchen.',
+      );
     }
   }
 
@@ -278,13 +329,18 @@ export async function requestRaw(path: string, query?: RequestOptions['query']):
   let response = await send(tokenStore.access);
 
   if (response.status === 401) {
-    const token = await refreshAccessToken();
-    if (token) {
-      response = await send(token);
-    } else {
+    const erneuerung = await refreshAccessToken();
+    if (erneuerung.art === 'erneuert') {
+      response = await send(erneuerung.token);
+    } else if (erneuerung.art === 'abgelehnt') {
       tokenStore.clear();
       onSessionExpired?.();
       throw new ApiError(401, 'Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
+    } else {
+      throw new ApiError(
+        503,
+        'Der Server ist gerade nicht erreichbar. Bitte in einem Moment erneut versuchen.',
+      );
     }
   }
 
