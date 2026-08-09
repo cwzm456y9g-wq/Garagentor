@@ -68,3 +68,6 @@ export const passwortZuruecksetzenSchema = z
     newPassword: z.string().min(10).max(200),
   })
   .strict();
+
+export type BenutzerAnlegen = z.infer<typeof benutzerAnlegenSchema>;
+export type BenutzerAendern = z.infer<typeof benutzerAendernSchema>;

@@ -80,3 +80,14 @@ export class Logger {
     if (process.env.NODE_ENV === 'development') this.schreibe('log', nachricht, zusatz);
   }
 }
+
+/**
+ * Für Dienste, die auf etwas warten, das nicht eingerichtet ist – etwa den
+ * Mailversand ohne hinterlegten Postausgang. Kein Fehler des Aufrufers,
+ * sondern ein fehlendes Stück Konfiguration.
+ */
+export class ServiceUnavailableException extends HttpFehler {
+  constructor(nachricht = 'Der Dienst ist derzeit nicht verfügbar.') {
+    super(503, nachricht);
+  }
+}

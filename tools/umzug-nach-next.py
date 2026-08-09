@@ -44,8 +44,61 @@ EINSPRITZUNGEN = {
 }
 
 
+# Anpassungen, die sich nicht aus einer Regel ergeben, aber jeden Lauf
+# überstehen müssen.
+NACHBESSERUNGEN: dict[str, list[tuple[str, str]]] = {
+    'documents/documents.service.ts': [
+        # Multer gibt es in Next.js nicht; die Felder heißen bewusst weiter so,
+        # damit die Prüfungen im Dienst unverändert bleiben.
+        (
+            'async upload(file: Express.Multer.File,',
+            'async upload(file: HochgeladeneDatei,',
+        ),
+        (
+            '/** Zulässige Dateitypen der Dokumentenablage. */',
+            """/**
+ * Eine hochgeladene Datei, unabhängig davon, wer sie entgegennimmt.
+ *
+ * Vorher kam sie von Multer aus Express. Next.js liefert stattdessen ein
+ * `File` aus `request.formData()`.
+ */
+export interface HochgeladeneDatei {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
+/** Zulässige Dateitypen der Dokumentenablage. */""",
+        ),
+        # Konfiguration erst beim Zugriff lesen: Next.js lädt jede Route schon
+        # während `next build`. Als Feld bräuchte der Bau die Produktivgeheimnisse.
+        (
+            """  private readonly config = konfiguration();
+  private readonly uploadRoot = resolve(this.config.uploads.dir);""",
+            """  private get config() {
+    return konfiguration();
+  }
+
+  private get uploadRoot(): string {
+    return resolve(this.config.uploads.dir);
+  }""",
+        ),
+    ],
+    'auth/users.service.ts': [
+        (
+            "import { prisma } from '@/server/prisma';",
+            "import { prisma } from '@/server/prisma';\n"
+            "import { alleSitzungenBeenden, passwortHashen } from '../anmeldedienst';",
+        ),
+        ('auth.hashPassword(', 'passwortHashen('),
+        ('auth.revokeAllForUser(', 'alleSitzungenBeenden('),
+    ],
+}
+
+
 # Reine Helfer ohne DTO-Bezug, die modulübergreifend gebraucht werden.
-EXTRA_DATEIEN = {'invoices/invoice-status.ts'}
+EXTRA_DATEIEN = {'invoices/invoice-status.ts', 'auth/users.service.ts'}
 
 
 def unbenutzte_importe_entfernen(text: str) -> str:
@@ -107,6 +160,7 @@ def umschreiben(pfad: pathlib.Path, text: str) -> str:
         text,
     )
     text = re.sub(r"AppConfig\['(\w+)'\]", r"Konfiguration['\1']", text)
+    text = re.sub(r'\bloadConfiguration\b', 'konfiguration', text)
 
     # Der Dekorator entfällt ersatzlos.
     text = re.sub(r'\n?@Injectable\(\)\n', '\n', text)
@@ -140,14 +194,16 @@ def umschreiben(pfad: pathlib.Path, text: str) -> str:
             return ''  # der ConfigService entfällt
 
         if quelle.endswith('config/configuration'):
-            behalten = [n for n in liste if n != 'AppConfig']
-            if not behalten:
-                return "import { konfiguration, type Konfiguration } from '@/server/konfiguration';"
-            return f"import {{ {', '.join(behalten)} }} from '@/server/konfiguration';"
+            # `loadConfiguration` wurde oben schon in `konfiguration` umbenannt,
+            # steht also bereits in der Liste – sonst stünde es doppelt da.
+            weg = {'AppConfig', 'loadConfiguration', 'konfiguration', 'Konfiguration'}
+            behalten = [n for n in liste if n not in weg]
+            teile = ['konfiguration', 'type Konfiguration'] + behalten
+            return f"import {{ {', '.join(teile)} }} from '@/server/konfiguration';"
 
         return m.group(0)
 
-    text = re.sub(r"import \{([^}]+)\} from '([^']+)';", import_ersetzen, text)
+    text = re.sub(r"import (?:type )?\{([^}]+)\} from '([^']+)';", import_ersetzen, text)
 
     # PrismaClient als Typ braucht einen Import, wenn er noch vorkommt.
     if re.search(r'\bPrismaClient\b', text):
@@ -178,6 +234,9 @@ def umschreiben(pfad: pathlib.Path, text: str) -> str:
             kurz = klasse[0].lower() + klasse[1:]
         text = text.rstrip() + f'\n\nexport const {kurz} = new {klasse}();\n'
 
+    for alt, neu in NACHBESSERUNGEN.get(pfad.as_posix(), []):
+        text = text.replace(alt, neu)
+
     text = unbenutzte_importe_entfernen(text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text
@@ -196,7 +255,7 @@ def main() -> None:
 
         if name in UEBERSPRINGEN:
             continue
-        if name.startswith('auth/') or name.startswith('health/'):
+        if name not in EXTRA_DATEIEN and (name.startswith('auth/') or name.startswith('health/')):
             continue
         if name.endswith(('.controller.ts', '.module.ts', '.spec.ts')):
             continue

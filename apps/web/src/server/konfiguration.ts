@@ -13,14 +13,20 @@ export interface Konfiguration {
     zugangsDauer: string;
     erneuerungsDauer: string;
   };
-  ablage: {
+  uploads: {
+    /**
+     * Verzeichnis auf der Platte. Auf Hostingers geteiltem Webhosting
+     * übersteht das ein Neuausrollen nicht zuverlässig – deshalb wandert die
+     * Ablage anschließend nach Supabase Storage.
+     */
+    dir: string;
+    maxBytes: number;
     /** Name des privaten Buckets in Supabase Storage. */
     bucket: string;
-    maxBytes: number;
     supabaseUrl: string | null;
     /**
      * Der Dienstschlüssel umgeht RLS und darf den Browser nie erreichen. Er
-     * wird ausschließlich in Route Handlern gelesen, die im Server laufen.
+     * wird ausschließlich serverseitig gelesen.
      */
     dienstSchluessel: string | null;
   };
@@ -96,9 +102,10 @@ export function konfiguration(): Konfiguration {
       zugangsDauer: process.env.JWT_ACCESS_TTL ?? '15m',
       erneuerungsDauer: process.env.JWT_REFRESH_TTL ?? '7d',
     },
-    ablage: {
-      bucket: process.env.SUPABASE_BUCKET?.trim() || 'dokumente',
+    uploads: {
+      dir: process.env.UPLOAD_DIR ?? './uploads',
       maxBytes: Number.parseInt(process.env.MAX_UPLOAD_MB ?? '25', 10) * 1024 * 1024,
+      bucket: process.env.SUPABASE_BUCKET?.trim() || 'dokumente',
       supabaseUrl: process.env.SUPABASE_URL?.trim() || null,
       dienstSchluessel: process.env.SUPABASE_SERVICE_ROLE_KEY || null,
     },
