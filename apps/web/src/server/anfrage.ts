@@ -96,6 +96,12 @@ export interface PaginationQuery {
   take: number;
 }
 
+/**
+ * Alias unter dem alten Namen. Einzelne Dienste geben ihre Abfrage nur als
+ * Blätterung weiter, ohne eigene Filter, und tippen den Parameter entsprechend.
+ */
+export type PaginationQueryDto = PaginationQuery;
+
 /** Baut die einheitliche Listenantwort. */
 export function paginate<T>(items: T[], total: number, query: PaginationQuery): Paginated<T> {
   return {
