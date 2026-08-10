@@ -98,19 +98,26 @@ function clientErzeugen(): PrismaClient {
 
     // Die vorige Grenze deckt nur den Aufbau der Verbindung ab. Steht sie
     // erst, kann eine Abfrage weiterhin unbegrenzt hängen – und mit ihr die
-    // Anmeldung, die darauf wartet. Zwei Grenzen, weil sie an verschiedenen
-    // Enden greifen:
-    //
-    //   query_timeout      bricht im Client ab, wenn keine Antwort kommt –
-    //                      wirkt auch dann, wenn die Gegenstelle schweigt.
-    //   statement_timeout  wird der Datenbank mitgeteilt, die die Abfrage
-    //                      selbst beendet. So bleibt dort nichts stehen und
-    //                      belegt eine der wenigen Verbindungen.
-    //
-    // Zwanzig Sekunden sind für jede Abfrage dieser Anwendung reichlich; die
-    // längste – der Buchungsstapel eines Jahres – bleibt weit darunter.
+    // Anmeldung, die darauf wartet. Diese Grenze wirkt im Client: Kommt keine
+    // Antwort, bricht er von sich aus ab. Zwanzig Sekunden sind für jede
+    // Abfrage dieser Anwendung reichlich; die längste – der Buchungsstapel
+    // eines Jahres – bleibt weit darunter.
     query_timeout: ABFRAGE_GEDULD_MS,
-    statement_timeout: ABFRAGE_GEDULD_MS,
+
+    // Hier stand einmal zusätzlich `statement_timeout`, damit auch die
+    // Datenbank selbst abbricht und nichts stehen bleibt. Das war ein Fehler,
+    // und zwar ein teurer: `pg` reicht diesen Wert nicht als Befehl nach dem
+    // Anmelden weiter, sondern **im Anmeldepaket** (siehe getStartupConf in
+    // pg/lib/client.js). Zwischen uns und der Datenbank sitzt aber der
+    // Supabase-Pooler, und ein Pooler kann mit unbekannten Anmeldeparametern
+    // nichts anfangen – er muss sie auf eine gemeinsam genutzte Verbindung
+    // abbilden. Die Anmeldung gelang daraufhin, und die erste Abfrage kam nie
+    // zurück: keine Fehlermeldung, kein Abbruch, nur Warten.
+    //
+    // Eine serverseitige Grenze gehört deshalb nicht in die Verbindung,
+    // sondern an die Rolle (ALTER ROLE … SET statement_timeout). Bis dahin
+    // reicht die Grenze im Client – sie verhindert dasselbe, nur eine
+    // Armlänge weiter vorn.
   });
 
   return new PrismaClient({
