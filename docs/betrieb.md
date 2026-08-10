@@ -37,6 +37,28 @@ Das Datenbank-Passwort setzt du im Supabase-Dashboard unter **Project Settings �
 Database → Database password**. Es gehört in die Umgebung des Servers, nicht in
 dieses Verzeichnis und nicht in einen Chat.
 
+Enthält das Passwort Sonderzeichen, müssen sie in der Adresse umgeschrieben
+werden – sonst zerbricht sie an ihnen: `#` als `%23`, `?` als `%3F`, `/` als
+`%2F`, `@` als `%40`. Wer sich das ersparen will, vergibt ein Passwort aus
+Buchstaben und Zahlen.
+
+### Verschlüsselung der Datenbankverbindung
+
+Prisma spricht hier über den JavaScript-Treiber `pg` (der Grund steht in
+`apps/web/src/server/prisma.ts`). Der verschlüsselt **nicht** von sich aus,
+anders als Prismas eigener Treiber. Die Anwendung schaltet die Verschlüsselung
+deshalb selbst ein, sobald die Datenbank nicht auf derselben Maschine steht.
+
+Ungeprüft bleibt dabei, ob am anderen Ende wirklich Supabase antwortet.
+Dagegen hilft **`DATABASE_SSL_CA`**: das Wurzelzertifikat aus
+**Project Settings → Database → SSL Configuration**, als Umgebungsvariable
+hinterlegt. Zeilenumbrüche dürfen als `\n` geschrieben sein, weil hPanel kein
+mehrzeiliges Feld anbietet. Steht der Wert, wird das Zertifikat vollständig
+geprüft.
+
+Ein `sslmode` in der Adresse selbst gewinnt gegen beides – wer es
+ausdrücklich hinschreibt, meint es auch so.
+
 ### Absicherung
 
 Auf allen 42 Tabellen ist Row Level Security aktiv, **ohne eine einzige
@@ -94,16 +116,18 @@ Das Verzeichnis `paket/` hochladen. In hPanel unter **Node.js** eintragen:
 Diese Werte gehören in hPanel unter „Node.js", **nicht** in eine Datei im
 Paket und nicht ins Verzeichnis:
 
-| Variable                    | Wofür                                                                |
-| --------------------------- | -------------------------------------------------------------------- |
-| `DATABASE_URL`              | Supabase-Pooler, Port 6543, mit `?pgbouncer=true&connection_limit=1` |
-| `DIRECT_URL`                | Supabase direkt, Port 5432, nur für Migrationen                      |
-| `JWT_ACCESS_SECRET`         | mindestens 32 Zeichen, etwa `openssl rand -base64 48`                |
-| `JWT_REFRESH_SECRET`        | ein **anderer** Wert, ebenso lang                                    |
-| `SUPABASE_URL`              | `https://kcrozoxqjlwgofbtrkgr.supabase.co`                           |
-| `SUPABASE_SERVICE_ROLE_KEY` | für die Dateiablage; umgeht RLS, gehört nie in den Browser           |
-| `CRON_SECRET`               | weist den nächtlichen Aufruf aus                                     |
-| `MAIL_*`                    | Postausgang; ohne `MAIL_HOST` läuft alles, nur ohne Versand          |
+| Variable                    | Wofür                                                                 |
+| --------------------------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`              | Supabase-Pooler, Port 6543, mit `?pgbouncer=true&connection_limit=1`  |
+| `DIRECT_URL`                | Supabase direkt, Port 5432, nur für Migrationen                       |
+| `JWT_ACCESS_SECRET`         | mindestens 32 Zeichen, etwa `openssl rand -base64 48`                 |
+| `JWT_REFRESH_SECRET`        | ein **anderer** Wert, ebenso lang                                     |
+| `SUPABASE_URL`              | `https://kcrozoxqjlwgofbtrkgr.supabase.co`                            |
+| `SUPABASE_SERVICE_ROLE_KEY` | für die Dateiablage; umgeht RLS, gehört nie in den Browser            |
+| `CRON_SECRET`               | weist den nächtlichen Aufruf aus                                      |
+| `MAIL_*`                    | Postausgang; ohne `MAIL_HOST` läuft alles, nur ohne Versand           |
+| `DATABASE_SSL_CA`           | optional, empfohlen: Supabase-Wurzelzertifikat, prüft die Gegenstelle |
+| `DATABASE_POOL_MAX`         | optional: Verbindungen je Prozess, Voreinstellung 5                   |
 
 Die Anwendung weigert sich im Produktivbetrieb zu starten, wenn ein Geheimnis
 noch den Entwicklungswert enthält oder kürzer als 32 Zeichen ist. Das ist

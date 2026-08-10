@@ -157,6 +157,61 @@ export function untersuche(roh: string | undefined): Befund | { fehler: string }
   };
 }
 
+/** Wie die Verbindung verschlüsselt wird – in der Form, die `pg` erwartet. */
+export type TlsWahl = false | { ca?: string; rejectUnauthorized: boolean };
+
+/**
+ * Rechner, bei denen keine Verschlüsselung verlangt wird.
+ *
+ * `postgres` und `db` stehen darin, weil die Entwicklungsumgebung aus
+ * docker-compose die Datenbank so nennt – innerhalb eines Container-Netzes.
+ */
+const IM_HAUS = ['localhost', '127.0.0.1', '::1', '[::1]', 'postgres', 'db'];
+
+/**
+ * Entscheidet über die Verschlüsselung der Datenbankverbindung.
+ *
+ * Der Anlass ist eine Falle beim Treiberwechsel: Prismas eigener Treiber
+ * verschlüsselte von sich aus, `pg` tut das **nicht**. Ohne diese Entscheidung
+ * liefen Passwort, Kundendaten und Rechnungen im Klartext durchs Netz – eine
+ * Verschlechterung, die niemand bemerkt hätte, weil alles weiter funktioniert.
+ *
+ * Drei Fälle:
+ *
+ *   Wurzelzertifikat hinterlegt   Vollständige Prüfung. Supabase bietet das
+ *                                 Zertifikat unter Settings → Database → SSL
+ *                                 Configuration an.
+ *   eigene Maschine               Keine Verschlüsselung. Eine Datenbank auf
+ *                                 `localhost` bietet gewöhnlich gar kein TLS
+ *                                 an; würde hier darauf bestanden, ließe sich
+ *                                 die Anwendung nicht mehr starten. Über diese
+ *                                 Verbindung geht ohnehin kein Kabel.
+ *   sonst                         Verschlüsselt, Zertifikat ungeprüft.
+ *                                 Mitlesen ist damit ausgeschlossen, ein
+ *                                 vorgetäuschter Server nicht – dieselbe Stufe,
+ *                                 auf der Prisma bisher lief.
+ *
+ * Steht in der Adresse ein `sslmode`, gewinnt dieser: `pg` liest die Adresse
+ * nach dieser Einstellung und überschreibt sie. Das ist gewollt – wer es
+ * ausdrücklich hinschreibt, meint es auch so.
+ */
+export function tlsFuer(adresse: string | undefined, wurzelzertifikat?: string): TlsWahl {
+  const wurzel = wurzelzertifikat?.trim();
+  // Zeilenumbrüche dürfen als \n geschrieben sein: Die Weboberflächen von
+  // hPanel und Supabase nehmen kein mehrzeiliges Feld an.
+  if (wurzel) return { ca: wurzel.replace(/\\n/g, '\n'), rejectUnauthorized: true };
+
+  try {
+    return IM_HAUS.includes(new URL(bereinige(adresse ?? '')).hostname)
+      ? false
+      : { rejectUnauthorized: false };
+  } catch {
+    // Unlesbare Adresse: Dann lieber verschlüsselt scheitern als unverschlüsselt
+    // gelingen.
+    return { rejectUnauthorized: false };
+  }
+}
+
 /**
  * Setzt die bereinigten Adressen zurück in die Umgebung.
  *

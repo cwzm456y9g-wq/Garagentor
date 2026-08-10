@@ -1,4 +1,4 @@
-import { bereinige, untersuche } from '@/server/db-adresse';
+import { bereinige, tlsFuer, untersuche } from '@/server/db-adresse';
 
 const POOLER = 'aws-0-eu-central-1.pooler.supabase.com';
 
@@ -88,6 +88,43 @@ describe('Verbindungsadresse', () => {
     it('sagt es, wenn gar nichts gesetzt ist', () => {
       expect(untersuche(undefined)).toEqual({ fehler: expect.stringContaining('leer') });
       expect(untersuche('   ')).toEqual({ fehler: expect.stringContaining('leer') });
+    });
+  });
+
+  describe('Verschlüsselung', () => {
+    // Der Grund für diese Tests: Prismas eigener Treiber verschlüsselte von
+    // sich aus, `pg` nicht. Fiele diese Entscheidung weg, liefen Passwort und
+    // Kundendaten im Klartext durchs Netz – und alles funktionierte weiter.
+    it('verschlüsselt alles, was nicht auf dieser Maschine steht', () => {
+      expect(tlsFuer(`postgresql://u:p@${POOLER}:5432/postgres`)).toEqual({
+        rejectUnauthorized: false,
+      });
+    });
+
+    it('verlangt nichts von einer Datenbank im eigenen Haus', () => {
+      expect(tlsFuer('postgresql://u:p@localhost:5432/garagentor')).toBe(false);
+      expect(tlsFuer('postgresql://u:p@127.0.0.1:5432/garagentor')).toBe(false);
+      expect(tlsFuer('postgresql://u:p@postgres:5432/garagentor')).toBe(false);
+    });
+
+    it('prüft das Zertifikat, sobald eines hinterlegt ist', () => {
+      const pem = '-----BEGIN CERTIFICATE-----\\nMIIB\\n-----END CERTIFICATE-----';
+
+      expect(tlsFuer(`postgresql://u:p@${POOLER}:5432/postgres`, pem)).toEqual({
+        // Als \n geschriebene Umbrüche werden zu echten – hPanel nimmt kein
+        // mehrzeiliges Feld an.
+        ca: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+        rejectUnauthorized: true,
+      });
+    });
+
+    it('verschlüsselt lieber, wenn die Adresse unlesbar ist', () => {
+      expect(tlsFuer(undefined)).toEqual({ rejectUnauthorized: false });
+      expect(tlsFuer('kein-url')).toEqual({ rejectUnauthorized: false });
+    });
+
+    it('sieht auch durch Anführungszeichen hindurch', () => {
+      expect(tlsFuer('"postgresql://u:p@localhost:5432/garagentor"')).toBe(false);
     });
   });
 

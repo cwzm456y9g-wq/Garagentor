@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { adressenBereinigen } from './db-adresse';
+import type { PoolConfig } from 'pg';
+import { adressenBereinigen, tlsFuer } from './db-adresse';
 
 // Vor allem anderen: Die Adressen aus der Umgebung von dem befreien, was beim
 // Kopieren aus einer Anleitung mitkommt – umschließende Anführungszeichen,
@@ -29,8 +30,61 @@ adressenBereinigen();
  * kompilierte Prisma-Bibliothek nicht zur OpenSSL-Version des Servers gepasst.
  * Was es nicht gibt, kann auch nicht unpassend sein.
  */
+/**
+ * Verschlüsselung der Verbindung.
+ *
+ * Hier ist Vorsicht geboten: Prismas eigener Treiber verschlüsselte von sich
+ * aus, `pg` tut das **nicht**. Ohne diese Einstellung liefen Passwort,
+ * Kundendaten und Rechnungen im Klartext von Hostinger nach Frankfurt. Der
+ * Wechsel des Treibers darf nicht heimlich die Verschlüsselung mitnehmen.
+ *
+ * Zwei Stufen, und der Unterschied gehört benannt:
+ *
+ *   ohne DATABASE_SSL_CA  Verschlüsselt, aber das Zertifikat der Gegenstelle
+ *                         wird nicht geprüft. Mitlesen ist damit ausgeschlossen,
+ *                         ein vorgetäuschter Server nicht. Das entspricht dem,
+ *                         was Prismas Treiber bisher tat.
+ *   mit DATABASE_SSL_CA   Vollständige Prüfung gegen das hinterlegte
+ *                         Wurzelzertifikat. Supabase bietet es unter
+ *                         Settings → Database → SSL Configuration zum
+ *                         Herunterladen an; der Inhalt kommt als
+ *                         Umgebungsvariable in hPanel, Zeilenumbrüche dürfen
+ *                         als \n geschrieben sein.
+ *
+ * Steht in der Adresse selbst ein `sslmode`, gewinnt dieser: `pg` liest die
+ * Adresse nach dieser Einstellung und überschreibt sie. Das ist gewollt – wer
+ * es ausdrücklich hinschreibt, meint es auch so.
+ *
+ * Ausgenommen ist die eigene Maschine. Eine Datenbank auf `localhost` bietet
+ * gewöhnlich gar kein TLS an; würde hier darauf bestanden, ließe sich die
+ * Anwendung auf dem Entwicklungsrechner nicht mehr starten. Über diese
+ * Verbindung geht ohnehin kein Kabel.
+ */
+function tlsEinstellung(): PoolConfig['ssl'] {
+  return tlsFuer(process.env.DATABASE_URL, process.env.DATABASE_SSL_CA);
+}
+
+/**
+ * Wie viele Verbindungen offen gehalten werden.
+ *
+ * Klein, und zwar aus zwei Richtungen: Supabase gibt auf dem kleinen Tarif nur
+ * wenige Verbindungen her, und Hostinger kann den Node-Prozess mehrfach halten
+ * – jeder mit eigenem Vorrat. Zehn (die Voreinstellung von `pg`) wären zu viel.
+ */
+const VERBINDUNGEN = Number.parseInt(process.env.DATABASE_POOL_MAX ?? '', 10) || 5;
+
 function clientErzeugen(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    ssl: tlsEinstellung(),
+    max: VERBINDUNGEN,
+    idleTimeoutMillis: 30_000,
+    // Ohne diese Grenze wartet eine Abfrage bei erschöpftem Vorrat oder
+    // stummem Netz endlos. Genau das erzeugte den 504 samt Neustartschleife:
+    // Die Überwachung hielt den Prozess für hängend. Ein Fehler nach zehn
+    // Sekunden ist besser als eine Antwort, die nie kommt.
+    connectionTimeoutMillis: 10_000,
+  });
 
   return new PrismaClient({
     adapter,

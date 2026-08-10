@@ -155,6 +155,11 @@ Diese Werte gehören in hPanel unter „Node.js", nicht in eine Datei:
 \`SUPABASE_URL\`, \`SUPABASE_SERVICE_ROLE_KEY\`, \`CRON_SECRET\` sowie \`MAIL_*\`
 für den Postausgang.
 
+Empfohlen dazu \`DATABASE_SSL_CA\` – das Wurzelzertifikat aus Supabase unter
+Settings → Database → SSL Configuration. Die Verbindung ist auch ohne diesen
+Wert verschlüsselt; mit ihm wird zusätzlich geprüft, ob am anderen Ende
+wirklich Supabase antwortet.
+
 Die Anwendung startet absichtlich nicht, wenn ein Geheimnis fehlt, noch den
 Entwicklungswert enthält oder kürzer als 32 Zeichen ist.
 LIES
