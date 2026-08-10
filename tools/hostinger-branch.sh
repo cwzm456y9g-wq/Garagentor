@@ -53,6 +53,46 @@ cp -R "$WURZEL/paket"/. "$TMP"/
 # aussperren, was hier hinein soll.
 find "$TMP" -name .gitignore -delete
 
+# Die package.json des Quellprojekts wandert unverändert in den eigenständigen
+# Bau. Darin stehen `"build": "next build"` und die Workspace-Angabe – für ein
+# Ausrollwerkzeug sieht das aus wie ein Projekt, das erst gebaut werden muss.
+# Hostinger hat daraufhin genau das versucht und ist daran gescheitert, dass der
+# Quelltext hier fehlt:
+#
+#   „packages/shared is missing tsconfig.json, and apps/web is missing either
+#    a pages or app directory required by Next.js"
+#
+# Die Diagnose war richtig, die Schlussfolgerung falsch: Es fehlt nichts, es ist
+# nur schon gebaut. Deshalb beschreiben die beiden Dateien hier ein fertiges
+# Programm – kein Bau, keine Workspaces, ein Startbefehl.
+cat > "$TMP/package.json" <<PAKET
+{
+  "name": "garagentor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Garagentor – fertig gebaut, bereit zum Start",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "echo 'Bereits gebaut – dieser Branch enthält das Ergebnis.'",
+    "start": "node apps/web/server.js"
+  }
+}
+PAKET
+
+# Dieselbe Behandlung für die Datei der Anwendung: Sie bleibt liegen, weil die
+# Modulauflösung sie braucht, verliert aber ihre Bau- und Werkzeugbefehle.
+node - "$TMP/apps/web/package.json" <<'KNOTEN'
+const fs = require('node:fs');
+const pfad = process.argv[2];
+const paket = JSON.parse(fs.readFileSync(pfad, 'utf8'));
+paket.scripts = { start: 'node server.js' };
+delete paket.devDependencies;
+fs.writeFileSync(pfad, JSON.stringify(paket, null, 2) + '\n');
+KNOTEN
+
 cat > "$TMP/LIESMICH.md" <<LIES
 # Garagentor – fertig gebaut für Hostinger
 
@@ -65,13 +105,17 @@ Gebaut aus: \`$HERKUNFT\` – $BESCHREIBUNG
 
 ## Einrichtung in hPanel
 
-| Feld         | Wert                  |
-| ------------ | --------------------- |
-| Branch       | \`hostinger\`           |
-| Startdatei   | \`apps/web/server.js\`  |
-| Node-Version | 22 (mindestens 20.11) |
+| Feld             | Wert                  |
+| ---------------- | --------------------- |
+| Framework        | **Other**             |
+| Entry file       | \`apps/web/server.js\`  |
+| Output directory | leer lassen           |
+| Node-Version     | 22 (mindestens 20.11) |
 
-Es gibt **keinen Build-Befehl** – die Anwendung ist bereits gebaut.
+Es gibt **keinen Build-Befehl** – die Anwendung ist bereits gebaut. Wählt man
+„Next.js" statt „Other", versucht die Plattform einen Bau und scheitert daran,
+dass hier kein Quelltext liegt. Das ist kein Mangel, sondern der Zweck dieses
+Branches.
 
 ## Umgebungsvariablen
 
