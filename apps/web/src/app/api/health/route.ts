@@ -1,6 +1,6 @@
 import { offen } from '@/server/anmeldung';
 import { json } from '@/server/antwort';
-import { prisma } from '@/server/prisma';
+import { ABFRAGE_GEDULD_MS, prisma } from '@/server/prisma';
 import { untersuche } from '@/server/db-adresse';
 import { netzpruefung } from '@/server/netzpruefung';
 
@@ -11,17 +11,25 @@ export const dynamic = 'force-dynamic';
  * Wie lange auf die Datenbank gewartet wird, bevor die Antwort ohne sie
  * hinausgeht.
  *
- * Der Wert liegt bewusst **knapp über** der Zeitgrenze des Verbindungsaufbaus
- * (zehn Sekunden, siehe `server/prisma.ts`). Anfangs stand hier ein knapperes
- * Maß, und das kostete eine Runde: Eine abgelehnte Verbindung brauchte länger
- * als die Geduld hier, und die Auskunft meldete „Zeitüberschreitung", wo die
- * Datenbank in Wahrheit eine benennbare Absage geschickt hatte. Wer zuerst
- * aufgibt, bestimmt die Meldung – also darf es nicht diese Stelle sein.
+ * Der Wert leitet sich aus der Grenze darunter ab, und das ist der ganze
+ * Witz daran: Diese Stelle darf **niemals zuerst aufgeben**. Wer zuerst
+ * aufgibt, bestimmt die Meldung – und „Zeitüberschreitung" ist die einzige,
+ * die nichts erklärt.
  *
- * Bis zur Grenze des Webservers (üblicherweise sechzig Sekunden) bleibt reichlich
- * Abstand.
+ * Zwei Runden hat genau das gekostet. Erst standen hier vier Sekunden, während
+ * der Verbindungsaufbau zehn haben darf: Eine abgelehnte Verbindung wurde als
+ * Zeitüberschreitung gemeldet, obwohl die Datenbank eine benennbare Absage
+ * geschickt hatte. Dann waren es zwölf, während eine Abfrage zwanzig haben
+ * darf – dasselbe Bild eine Ebene höher, diesmal bei einer Abfrage, die nicht
+ * zurückkam.
+ *
+ * Deshalb der feste Abstand statt einer eigenen Zahl: Ändert sich die Grenze
+ * unten, wandert diese mit. Im gesunden Fall antwortet die Auskunft ohnehin in
+ * Millisekunden; die lange Geduld greift nur, wenn etwas kaputt ist – also
+ * genau dann, wenn man die Begründung braucht. Bis zur Grenze des Webservers
+ * (üblicherweise sechzig Sekunden) bleibt Abstand.
  */
-const GEDULD_MS = 12_000;
+const GEDULD_MS = ABFRAGE_GEDULD_MS + 2_000;
 
 type Befund = 'ok' | 'nicht erreichbar' | 'Zeitüberschreitung';
 

@@ -73,8 +73,16 @@ function tlsEinstellung(): PoolConfig['ssl'] {
  */
 const VERBINDUNGEN = Number.parseInt(process.env.DATABASE_POOL_MAX ?? '', 10) || 5;
 
-/** Wie lange eine einzelne Abfrage dauern darf, bevor sie abgebrochen wird. */
-const ABFRAGE_GEDULD_MS = 20_000;
+/**
+ * Wie lange eine einzelne Abfrage dauern darf, bevor sie abgebrochen wird.
+ *
+ * Wird nach außen gegeben, damit die Erreichbarkeitsauskunft ihre eigene
+ * Geduld daran ausrichten kann. Das ist keine Feinheit: Gibt die obere Schicht
+ * zuerst auf, meldet sie „Zeitüberschreitung" und verwirft dabei genau die
+ * Begründung, die die untere gerade formuliert hätte. Wer zuerst aufgibt,
+ * bestimmt die Meldung.
+ */
+export const ABFRAGE_GEDULD_MS = 20_000;
 
 function clientErzeugen(): PrismaClient {
   const adapter = new PrismaPg({
