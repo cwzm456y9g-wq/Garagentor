@@ -3,6 +3,7 @@ import { json } from '@/server/antwort';
 import { ABFRAGE_GEDULD_MS, prisma } from '@/server/prisma';
 import { untersuche } from '@/server/db-adresse';
 import { netzpruefung } from '@/server/netzpruefung';
+import { datenbankProbe } from '@/server/datenbank-probe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -118,6 +119,12 @@ async function stoerungsbild(): Promise<Record<string, unknown>> {
   if ('fehler' in adresse) return { ziel: adresse.fehler };
 
   const bild: Record<string, unknown> = { ziel: `${adresse.rechner}:${adresse.port}` };
+
+  // Dieselbe Frage noch einmal, aber am kürzesten Weg – ohne Prisma. Antwortet
+  // die Datenbank hier, während sie es oben nicht tat, liegt es nicht am Netz
+  // und nicht an den Zugangsdaten, sondern an der Schicht dazwischen. Diese
+  // Unterscheidung war zuletzt die entscheidende und nicht zu bekommen.
+  bild.direkt = await datenbankProbe();
 
   // Die Hinweise sind allgemeine Sätze, keine Werte – etwa dass beim
   // Supabase-Pooler die Projektkennung zum Benutzernamen gehört. Genau solche
