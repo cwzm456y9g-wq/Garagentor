@@ -2,7 +2,7 @@
   "name": "garagentor",
   "version": "0.1.0",
   "private": true,
-  "description": "Branchensoftware f\u00fcr Garagentor-Fachbetriebe (Handwerk)",
+  "description": "Branchensoftware für Garagentor-Fachbetriebe (Handwerk)",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=20.11.0"
@@ -29,7 +29,8 @@
     "db:migrate": "npm run db:migrate --workspace @garagentor/web",
     "db:seed": "npm run db:seed --workspace @garagentor/web",
     "db:studio": "npm run db:studio --workspace @garagentor/web",
-    "paket": "bash tools/hostinger-paket.sh"
+    "paket": "bash tools/hostinger-paket.sh",
+    "hostinger": "bash tools/hostinger-branch.sh"
   },
   "devDependencies": {
     "concurrently": "^10.0.4",
