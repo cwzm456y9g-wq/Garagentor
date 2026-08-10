@@ -30,7 +30,8 @@
     "db:seed": "npm run db:seed --workspace @garagentor/web",
     "db:studio": "npm run db:studio --workspace @garagentor/web",
     "paket": "bash tools/hostinger-paket.sh",
-    "hostinger": "bash tools/hostinger-branch.sh"
+    "hostinger": "bash tools/hostinger-branch.sh",
+    "datenbank": "node tools/datenbank-sql.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.4",

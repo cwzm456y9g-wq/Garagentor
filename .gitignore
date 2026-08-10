@@ -55,3 +55,4 @@ prisma/*.db-journal
 apps/web/.env.local
 paket
 garagentor-paket.zip
+garagentor-datenbank.sql
