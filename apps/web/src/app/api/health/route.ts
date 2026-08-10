@@ -1,6 +1,7 @@
 import { offen } from '@/server/anmeldung';
 import { json } from '@/server/antwort';
 import { prisma } from '@/server/prisma';
+import { untersuche } from '@/server/db-adresse';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,10 +10,17 @@ export const dynamic = 'force-dynamic';
  * Wie lange auf die Datenbank gewartet wird, bevor die Antwort ohne sie
  * hinausgeht.
  *
- * Der Wert ist bewusst knapp. Diese Auskunft soll auch dann kommen, wenn die
- * Datenbank nicht antwortet – gerade dann ist sie ja interessant.
+ * Der Wert liegt bewusst **knapp über** der Zeitgrenze des Verbindungsaufbaus
+ * (zehn Sekunden, siehe `server/prisma.ts`). Anfangs stand hier ein knapperes
+ * Maß, und das kostete eine Runde: Eine abgelehnte Verbindung brauchte länger
+ * als die Geduld hier, und die Auskunft meldete „Zeitüberschreitung", wo die
+ * Datenbank in Wahrheit eine benennbare Absage geschickt hatte. Wer zuerst
+ * aufgibt, bestimmt die Meldung – also darf es nicht diese Stelle sein.
+ *
+ * Bis zur Grenze des Webservers (üblicherweise sechzig Sekunden) bleibt reichlich
+ * Abstand.
  */
-const GEDULD_MS = 4000;
+const GEDULD_MS = 12_000;
 
 type Befund = 'ok' | 'nicht erreichbar' | 'Zeitüberschreitung';
 
@@ -43,9 +51,7 @@ async function datenbankBefund(): Promise<{ befund: Befund; details?: string }> 
     .then(() => ({ befund: 'ok' as Befund }))
     .catch((fehler: unknown) => ({
       befund: 'nicht erreichbar' as Befund,
-      // Nur die erste Zeile: Sie benennt die Ursache, ohne die
-      // Verbindungszeichenfolge samt Passwort auszuplaudern.
-      details: fehler instanceof Error ? fehler.message.split('\n')[0].slice(0, 200) : undefined,
+      details: ursache(fehler),
     }));
 
   try {
@@ -55,9 +61,59 @@ async function datenbankBefund(): Promise<{ befund: Befund; details?: string }> 
   }
 }
 
+/**
+ * Die Ursache in einem Satz – ohne die Verbindungszeichenfolge samt Passwort
+ * auszuplaudern.
+ *
+ * Hier stand einmal „die erste Zeile". Das ging schief, weil Prisma seine
+ * Meldungen mit einer Leerzeile beginnt: Übrig blieb ein leeres Feld, und die
+ * Auskunft sagte „nicht erreichbar" ohne zu sagen, warum – während in der
+ * verworfenen Meldung „password authentication failed" stand. Deshalb die
+ * erste Zeile, die überhaupt etwas enthält.
+ */
+function ursache(fehler: unknown): string | undefined {
+  if (!(fehler instanceof Error)) return undefined;
+
+  const zeilen = fehler.message
+    .split('\n')
+    .map((zeile) => zeile.trim())
+    .filter(Boolean);
+
+  // Prismas Meldungen führen mit dem Aufruf ein („Invalid `prisma.$queryRaw()`
+  // invocation"); der eigentliche Grund steht dahinter. Steht er da, gewinnt er.
+  const grund = zeilen.find((zeile) =>
+    /Message:|failed|denied|timeout|ECONN|ENOTFOUND/i.test(zeile),
+  );
+
+  return (grund ?? zeilen[0])?.slice(0, 200);
+}
+
+/**
+ * Wohin die Anwendung zu sprechen versucht – Rechnername und Port, sonst
+ * nichts.
+ *
+ * Diese Angabe erscheint **nur, wenn die Datenbank nicht antwortet**. Im
+ * Normalbetrieb steht sie nicht da, und selbst dann fehlen Benutzer, Passwort
+ * und Datenbankname.
+ *
+ * Der Grund für die Ausnahme: Die ausführliche Diagnose ist mit CRON_SECRET
+ * geschützt, und wer gerade eine Störung sucht, hat den Schlüssel oft nicht
+ * zur Hand. Der häufigste Fehler an dieser Stelle lässt sich aber allein am
+ * Rechnernamen erkennen – die Direktverbindung `db.<kennung>.supabase.co` ist
+ * nur über IPv6 erreichbar, geteiltes Webhosting kommt dort nicht hin, und die
+ * Verbindung läuft ohne jede Fehlermeldung ins Leere. Diese eine Zeile
+ * unterscheidet das von einem falschen Passwort.
+ */
+function ziel(): string | undefined {
+  const adresse = untersuche(process.env.DATABASE_URL);
+  if ('fehler' in adresse) return adresse.fehler;
+  return `${adresse.rechner}:${adresse.port}`;
+}
+
 // Ohne Anmeldung erreichbar: Überwachung und Hostinger sollen die Anwendung
 // prüfen können, ohne Zugangsdaten zu hinterlegen. Preisgegeben wird nichts
-// außer der Erreichbarkeit.
+// außer der Erreichbarkeit – und im Störungsfall der Rechnername, den die
+// Anwendung anzusprechen versucht.
 export const GET = offen(async () => {
   const { befund, details } = await datenbankBefund();
 
@@ -65,6 +121,7 @@ export const GET = offen(async () => {
     status: befund === 'ok' ? 'ok' : 'eingeschränkt',
     database: befund,
     ...(details ? { detail: details } : {}),
+    ...(befund === 'ok' ? {} : { ziel: ziel() }),
     // Welcher Bau gerade läuft. Beim Ausrollen bleibt sonst offen, ob die
     // Änderung überhaupt angekommen ist – eine Frage, die schon mehrere Runden
     // gekostet hat, in denen an einem längst behobenen Fehler weitergesucht
