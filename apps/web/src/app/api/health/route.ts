@@ -2,6 +2,7 @@ import { offen } from '@/server/anmeldung';
 import { json } from '@/server/antwort';
 import { prisma } from '@/server/prisma';
 import { untersuche } from '@/server/db-adresse';
+import { netzpruefung } from '@/server/netzpruefung';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -104,10 +105,24 @@ function ursache(fehler: unknown): string | undefined {
  * Verbindung läuft ohne jede Fehlermeldung ins Leere. Diese eine Zeile
  * unterscheidet das von einem falschen Passwort.
  */
-function ziel(): string | undefined {
+async function stoerungsbild(): Promise<Record<string, unknown>> {
   const adresse = untersuche(process.env.DATABASE_URL);
-  if ('fehler' in adresse) return adresse.fehler;
-  return `${adresse.rechner}:${adresse.port}`;
+  if ('fehler' in adresse) return { ziel: adresse.fehler };
+
+  const bild: Record<string, unknown> = { ziel: `${adresse.rechner}:${adresse.port}` };
+
+  // Die Hinweise sind allgemeine Sätze, keine Werte – etwa dass beim
+  // Supabase-Pooler die Projektkennung zum Benutzernamen gehört. Genau solche
+  // Kleinigkeiten erzeugen eine Verbindung, die niemals zustande kommt.
+  if (adresse.auffaelligkeiten.length > 0) bild.hinweise = adresse.auffaelligkeiten;
+
+  // Und die Frage, die sonst offenbleibt: Liegt es am Netz oder an dem, was
+  // dahinter steht? Eine Abfrage ohne Antwort sieht in beiden Fällen gleich
+  // aus. Ein Anklopfen am Port trennt die Fälle in wenigen Millisekunden.
+  const port = Number.parseInt(adresse.port, 10);
+  if (Number.isFinite(port)) bild.netz = await netzpruefung(adresse.rechner, port);
+
+  return bild;
 }
 
 // Ohne Anmeldung erreichbar: Überwachung und Hostinger sollen die Anwendung
@@ -121,7 +136,7 @@ export const GET = offen(async () => {
     status: befund === 'ok' ? 'ok' : 'eingeschränkt',
     database: befund,
     ...(details ? { detail: details } : {}),
-    ...(befund === 'ok' ? {} : { ziel: ziel() }),
+    ...(befund === 'ok' ? {} : await stoerungsbild()),
     // Welcher Bau gerade läuft. Beim Ausrollen bleibt sonst offen, ob die
     // Änderung überhaupt angekommen ist – eine Frage, die schon mehrere Runden
     // gekostet hat, in denen an einem längst behobenen Fehler weitergesucht

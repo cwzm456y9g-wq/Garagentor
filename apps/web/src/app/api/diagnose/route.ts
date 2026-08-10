@@ -1,10 +1,10 @@
 import { lookup } from 'node:dns/promises';
-import { createConnection } from 'node:net';
 import { timingSafeEqual } from 'node:crypto';
 import { json } from '@/server/antwort';
 import { offen } from '@/server/anmeldung';
 import { prisma } from '@/server/prisma';
 import { untersuche } from '@/server/db-adresse';
+import { netzpruefung } from '@/server/netzpruefung';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,43 +39,12 @@ export const dynamic = 'force-dynamic';
  * Wenn alles läuft, darf diese Datei ersatzlos verschwinden.
  */
 
-const NETZ_GEDULD_MS = 5000;
-
 function schluesselStimmt(angefragt: string | null): boolean {
   const erwartet = process.env.CRON_SECRET;
   if (!erwartet || !angefragt) return false;
   const a = Buffer.from(angefragt);
   const b = Buffer.from(erwartet);
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-/** Öffnet kurz eine Verbindung, nur um zu sehen, ob jemand annimmt. */
-function netzpruefung(
-  rechner: string,
-  port: number,
-): Promise<{ ergebnis: string; dauerMs: number }> {
-  const start = Date.now();
-
-  return new Promise((erfuellen) => {
-    const verbindung = createConnection({ host: rechner, port });
-    const fertig = (ergebnis: string) => {
-      verbindung.destroy();
-      erfuellen({ ergebnis, dauerMs: Date.now() - start });
-    };
-
-    verbindung.setTimeout(NETZ_GEDULD_MS);
-    verbindung.once('connect', () => fertig('offen – es nimmt jemand an'));
-    verbindung.once('timeout', () =>
-      fertig('Zeitüberschreitung – die Pakete verschwinden, typisch für einen gesperrten Port'),
-    );
-    verbindung.once('error', (fehler: NodeJS.ErrnoException) =>
-      fertig(
-        fehler.code === 'ECONNREFUSED'
-          ? 'abgelehnt – der Port ist erreichbar, aber niemand hört darauf'
-          : `Fehler: ${fehler.code ?? fehler.message}`,
-      ),
-    );
-  });
 }
 
 export const GET = offen(async (anfrage: Request) => {
