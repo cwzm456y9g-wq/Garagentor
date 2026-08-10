@@ -27,6 +27,28 @@ export interface Befund {
 }
 
 /**
+ * Das Passwort so, wie es in der Zeichenkette steht – vor dem Dekodieren.
+ *
+ * `new URL` gibt das Passwort bereits ausgewertet zurück, und genau das
+ * verwischt den Unterschied, auf den es hier ankommt: Ein `#`, das ordentlich
+ * als `%23` geschrieben ist, sieht dekodiert aus wie ein `#`, das roh in der
+ * Adresse steht. Das erste ist richtig, das zweite zerstört die Adresse. Für
+ * die Warnung zählt also nur die rohe Form.
+ *
+ * Die Zerlegung geht vom letzten `@` aus, weil ein `@` im Passwort selbst
+ * vorkommen darf – der Rechnername steht immer dahinter.
+ */
+function rohesPasswort(wert: string): string | null {
+  const nachSchema = wert.replace(/^\w+:\/\//, '');
+  const trenner = nachSchema.lastIndexOf('@');
+  if (trenner < 0) return null;
+
+  const zugang = nachSchema.slice(0, trenner);
+  const doppelpunkt = zugang.indexOf(':');
+  return doppelpunkt < 0 ? '' : zugang.slice(doppelpunkt + 1);
+}
+
+/**
  * Entfernt, was beim Kopieren mitkommt.
  *
  * * Umschließende Anführungszeichen: Anleitungen schreiben
@@ -99,9 +121,12 @@ export function untersuche(roh: string | undefined): Befund | { fehler: string }
   if (/YOUR[-_]?PASSWORD/i.test(passwort) || /^\[.*\]$/.test(passwort)) {
     auffaelligkeiten.push('Das Passwort ist noch der Platzhalter aus der Anleitung.');
   }
-  if (/[#?/@]/.test(passwort)) {
+  // Nur die rohe Form darf hier Alarm auslösen. Ein korrekt geschriebenes
+  // `%23` ist kein Fehler, sondern die Lösung – es dekodiert lediglich zu `#`.
+  const unbehandelt = rohesPasswort(wert);
+  if (unbehandelt && /[#?/@]/.test(unbehandelt)) {
     auffaelligkeiten.push(
-      'Das Passwort enthält ein Sonderzeichen mit eigener Bedeutung (#, ?, / oder @). Es muss umgeschrieben werden, z. B. # als %23.',
+      'Das Passwort enthält ein Sonderzeichen mit eigener Bedeutung (#, ?, / oder @), und zwar unmaskiert. Es muss umgeschrieben werden: # als %23, ? als %3F, / als %2F, @ als %40.',
     );
   }
 

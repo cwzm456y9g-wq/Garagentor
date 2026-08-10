@@ -7,20 +7,17 @@
 generator client {
   provider = "prisma-client-js"
 
-  // Prisma spricht mit der Datenbank über eine kompilierte Bibliothek, und die
-  // muss zur OpenSSL-Version des Servers passen. Voreingestellt entsteht nur
-  // eine für den Rechner, auf dem gebaut wird – bei uns debian-openssl-3.0.x.
+  // Im Betrieb spricht Prisma über einen Treiber in JavaScript (`pg`, siehe
+  // src/server/prisma.ts) statt über seinen eigenen in Rust. Grund war ein
+  // Absturz auf Hostingers Webhosting – „PANIC: timer has gone away" –, den
+  // die dortige Beschränkung von Prozessen und Zeitgebern auslöst.
   //
-  // Hostingers Webhosting läuft älter. Der erste Anlauf dort endete deshalb mit
-  //
-  //   Prisma Client could not locate the Query Engine for runtime
-  //   "debian-openssl-1.1.x" … generated for "debian-openssl-3.0.x"
-  //
-  // Da wir fertig gebaut ausliefern und auf dem Server nichts nachgeneriert
-  // wird, muss die passende Bibliothek von vornherein mit ins Paket. Beide
-  // zusammen kosten rund 33 MB – der Preis dafür, dass dasselbe Paket hier und
-  // dort läuft.
-  binaryTargets = ["native", "debian-openssl-1.1.x"]
+  // Die kompilierten Bibliotheken bleiben trotzdem im Bau: `prisma migrate`
+  // und `prisma db seed` benutzen sie weiterhin. Damit dieselben Befehle auch
+  // auf einem älteren Server laufen, entsteht neben der eigenen Variante die
+  // für OpenSSL 1.1 – daran war der erste Anlauf dort gescheitert.
+  binaryTargets   = ["native", "debian-openssl-1.1.x"]
+  previewFeatures = ["driverAdapters"]
 }
 
 // Zwei Verbindungen, weil Supabase zwei verlangt:
