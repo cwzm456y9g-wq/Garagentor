@@ -126,7 +126,10 @@ async function refreshAccessToken(): Promise<Erneuerung> {
 
   refreshInFlight ??= (async (): Promise<Erneuerung> => {
     try {
-      const response = await fetch(`${BASE_URL}/auth/refresh`, {
+      // Auch hier mit Zeitgrenze: Bleibt die Erneuerung hängen, warten alle
+      // übrigen Anfragen auf sie – eine einzige stumme Antwort legte sonst die
+      // ganze Oberfläche still.
+      const response = await holen(`${BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -182,6 +185,74 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return url.toString();
 }
 
+/**
+ * Wie lange auf den Server gewartet wird, bevor eine Anfrage abgebrochen wird.
+ *
+ * Ohne diese Grenze wartet `fetch` unbegrenzt. Für den Bedienenden sieht das
+ * aus wie ein Knopf, der sich dreht und dreht: Keine Meldung, kein Fehler,
+ * nichts zum Weitermachen. Genau daran hing die Anmeldung fest, als der Server
+ * zwar antwortete, aber die Datenbank nicht.
+ *
+ * Dreißig Sekunden sind reichlich – die Datenbankverbindung gibt schon nach
+ * zehn auf, und der Webserver bricht bei sechzig ab. Diese Grenze liegt
+ * dazwischen, damit die Meldung von der Anwendung kommt und nicht als nackte
+ * Fehlerseite vom Webserver.
+ */
+const GEDULD_MS = 30_000;
+
+/**
+ * Verbindet eine eigene Zeitgrenze mit einem etwaigen Abbruchsignal des
+ * Aufrufers und sagt hinterher, welches von beiden zugeschlagen hat.
+ *
+ * Die Unterscheidung ist nötig: Ein vom Aufrufer abgebrochener Aufruf – etwa
+ * weil die Seite gewechselt wurde – ist kein Fehler und darf keine Meldung
+ * erzeugen. Eine abgelaufene Zeitgrenze ist einer.
+ */
+function mitZeitgrenze(vorgegeben: AbortSignal | undefined, grenzeMs: number) {
+  const steuerung = new AbortController();
+  let durchZeit = false;
+
+  const zeitgeber = setTimeout(() => {
+    durchZeit = true;
+    steuerung.abort();
+  }, grenzeMs);
+
+  const weiterreichen = () => steuerung.abort();
+  vorgegeben?.addEventListener('abort', weiterreichen);
+
+  return {
+    signal: steuerung.signal,
+    abgelaufen: () => durchZeit,
+    freigeben: () => {
+      clearTimeout(zeitgeber);
+      vorgegeben?.removeEventListener('abort', weiterreichen);
+    },
+  };
+}
+
+/** Die Meldung, die statt des ewig drehenden Rädchens erscheint. */
+function zeitgrenzeUeberschritten(): ApiError {
+  return new ApiError(
+    504,
+    `Der Server hat innerhalb von ${GEDULD_MS / 1000} Sekunden nicht geantwortet. Bitte erneut versuchen; bleibt es dabei, stimmt etwas mit dem Server oder der Datenbank nicht.`,
+  );
+}
+
+/** Schickt eine Anfrage mit Zeitgrenze und übersetzt deren Ablauf in einen Fehler. */
+async function holen(eingabe: string, optionen: RequestInit, vorgegeben?: AbortSignal) {
+  const bund = mitZeitgrenze(vorgegeben, GEDULD_MS);
+  try {
+    return await fetch(eingabe, { ...optionen, signal: bund.signal });
+  } catch (fehler) {
+    // Nur die eigene Zeitgrenze wird zur Meldung. Ein Abbruch des Aufrufers
+    // fliegt unverändert weiter, damit ihn niemand für einen Ausfall hält.
+    if (bund.abgelaufen()) throw zeitgrenzeUeberschritten();
+    throw fehler;
+  } finally {
+    bund.freigeben();
+  }
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   let body: ApiErrorBody | undefined;
   try {
@@ -206,19 +277,22 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const send = async (token: string | null): Promise<Response> => {
     const isFormData = options.body instanceof FormData;
 
-    return fetch(buildUrl(path, options.query), {
-      method: options.method ?? 'GET',
-      headers: {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    return holen(
+      buildUrl(path, options.query),
+      {
+        method: options.method ?? 'GET',
+        headers: {
+          ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: isFormData
+          ? (options.body as FormData)
+          : options.body !== undefined
+            ? JSON.stringify(options.body)
+            : undefined,
       },
-      body: isFormData
-        ? (options.body as FormData)
-        : options.body !== undefined
-          ? JSON.stringify(options.body)
-          : undefined,
-      signal: options.signal,
-    });
+      options.signal,
+    );
   };
 
   let response: Response;
@@ -322,7 +396,7 @@ export function warteschlangeUebertragen() {
  */
 export async function requestRaw(path: string, query?: RequestOptions['query']): Promise<Response> {
   const send = (token: string | null) =>
-    fetch(buildUrl(path, query), {
+    holen(buildUrl(path, query), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 

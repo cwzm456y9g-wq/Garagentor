@@ -20,14 +20,20 @@ export const dynamic = 'force-dynamic';
  *
  * Sie prüft vier Stufen, jede baut auf der vorigen auf:
  *
- *   1. Adresse    Lässt sich die Zeichenkette überhaupt lesen? Stecken
- *                 Anführungszeichen, Klammern oder Platzhalter darin?
- *   2. Name       Löst der Rechnername auf?
- *   3. Netz       Nimmt jemand auf diesem Port eine Verbindung an?
- *   4. Anmeldung  Lässt die Datenbank uns herein?
+ *   1. Adresse       Lässt sich die Zeichenkette überhaupt lesen? Stecken
+ *                    Anführungszeichen, Klammern oder Platzhalter darin?
+ *   2. Name          Löst der Rechnername auf?
+ *   3. Netz          Nimmt jemand auf diesem Port eine Verbindung an?
+ *   4. Anmeldung     Lässt die Datenbank uns herein?
+ *   5. Geheimnisse   Sind die Schlüssel gesetzt, mit denen Sitzungen
+ *                    unterschrieben werden? Ohne sie scheitert jede Anmeldung
+ *                    mit einem Serverfehler, obwohl die Datenbank steht.
+ *   6. Konten        Gibt es überhaupt jemanden zum Anmelden – und ist das
+ *                    Konto aktiv?
  *
  * Die erste Stufe, die scheitert, benennt die Ursache. Das Passwort verlässt
  * den Server dabei nicht – nur seine Länge und, falls auffällig, ein Hinweis.
+ * Auch von den Geheimnissen wird nur gemeldet, ob sie taugen, nie ihr Wert.
  *
  * Geschützt über CRON_SECRET, weil hier Rechnernamen und Benutzer stehen.
  * Wenn alles läuft, darf diese Datei ersatzlos verschwinden.
@@ -106,10 +112,49 @@ export const GET = offen(async (anfrage: Request) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     stufen['4_anmeldung'] = 'ok';
-    return json({ ergebnis: 'Alles in Ordnung – die Datenbank antwortet.', stufen });
   } catch (fehler) {
     const meldung = fehler instanceof Error ? fehler.message : String(fehler);
     stufen['4_anmeldung'] = meldung.split('\n').slice(0, 6).join(' ').slice(0, 500);
     return json({ ergebnis: 'Die Datenbank lehnt die Anmeldung ab.', stufen });
   }
+
+  /* 5 – Geheimnisse --------------------------------------------------- */
+  stufen['5_geheimnisse'] = Object.fromEntries(
+    ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'SUPABASE_SERVICE_ROLE_KEY', 'CRON_SECRET'].map(
+      (name) => [name, geheimnisBefund(process.env[name])],
+    ),
+  );
+
+  /* 6 – Konten -------------------------------------------------------- */
+  try {
+    const konten = await prisma.user.findMany({
+      select: { email: true, active: true, role: true },
+      orderBy: { email: 'asc' },
+      take: 20,
+    });
+
+    stufen['6_konten'] =
+      konten.length === 0
+        ? 'Es gibt kein einziges Konto. Ohne Konto ist keine Anmeldung möglich – die Demodaten oder ein Zugang müssen noch eingespielt werden.'
+        : konten.map((k) => `${k.email} – ${k.role}${k.active ? '' : ' (STILLGELEGT)'}`);
+  } catch (fehler) {
+    stufen['6_konten'] =
+      `nicht lesbar: ${fehler instanceof Error ? fehler.message.slice(0, 200) : 'unbekannt'}`;
+  }
+
+  return json({ ergebnis: 'Alles in Ordnung – die Datenbank antwortet.', stufen });
 });
+
+/**
+ * Beurteilt ein Geheimnis, ohne es preiszugeben.
+ *
+ * Die Anwendung weigert sich im Produktivbetrieb zu starten, wenn eines fehlt,
+ * noch den Entwicklungswert trägt oder zu kurz ist. Aus dem Browser sieht man
+ * davon nur einen Serverfehler bei der Anmeldung – hier steht, welches es war.
+ */
+function geheimnisBefund(wert: string | undefined): string {
+  if (!wert) return 'fehlt';
+  if (wert.includes('bitte-ersetzen')) return 'noch der Entwicklungswert';
+  if (wert.length < 32) return `zu kurz (${wert.length} Zeichen, nötig sind 32)`;
+  return `gesetzt (${wert.length} Zeichen)`;
+}
