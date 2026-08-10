@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { AuthUser, JwtPayload, LoginResponse } from '@garagentor/shared';
 import type { User } from '@prisma/client';
-import * as argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { konfiguration } from '../konfiguration';
 import { nichtAngemeldet, ungueltig, verboten } from '../fehler';
 import { prisma } from '../prisma';
+import { blindHash, passwortHashen, passwortPruefen } from '../passwort';
 
 /** Kontext des anfragenden Geräts, wird am Refresh-Token vermerkt. */
 export interface Geraetekontext {
@@ -24,26 +24,14 @@ export function alsAuthUser(benutzer: User): AuthUser {
   };
 }
 
-export function passwortHashen(passwort: string): Promise<string> {
-  return argon2.hash(passwort, { type: argon2.argon2id });
-}
+export { passwortHashen };
 
 /** Nur der Hash des Tokens wird gespeichert, nie der Token selbst. */
 function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-async function pruefePasswort(hash: string, passwort: string): Promise<boolean> {
-  try {
-    return await argon2.verify(hash, passwort);
-  } catch {
-    return false;
-  }
-}
-
-function blindHash(): Promise<string> {
-  return argon2.hash(randomBytes(24).toString('hex'), { type: argon2.argon2id });
-}
+const pruefePasswort = passwortPruefen;
 
 /** Wandelt Angaben wie `15m`, `7d` oder `900` in Sekunden um. */
 function inSekunden(dauer: string): number {

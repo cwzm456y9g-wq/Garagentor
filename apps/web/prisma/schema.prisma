@@ -6,6 +6,21 @@
 
 generator client {
   provider = "prisma-client-js"
+
+  // Prisma spricht mit der Datenbank über eine kompilierte Bibliothek, und die
+  // muss zur OpenSSL-Version des Servers passen. Voreingestellt entsteht nur
+  // eine für den Rechner, auf dem gebaut wird – bei uns debian-openssl-3.0.x.
+  //
+  // Hostingers Webhosting läuft älter. Der erste Anlauf dort endete deshalb mit
+  //
+  //   Prisma Client could not locate the Query Engine for runtime
+  //   "debian-openssl-1.1.x" … generated for "debian-openssl-3.0.x"
+  //
+  // Da wir fertig gebaut ausliefern und auf dem Server nichts nachgeneriert
+  // wird, muss die passende Bibliothek von vornherein mit ins Paket. Beide
+  // zusammen kosten rund 33 MB – der Preis dafür, dass dasselbe Paket hier und
+  // dort läuft.
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 
 // Zwei Verbindungen, weil Supabase zwei verlangt:
