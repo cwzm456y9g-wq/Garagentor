@@ -1,4 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { adressenBereinigen } from './db-adresse';
+
+// Vor allem anderen: Die Adressen aus der Umgebung von dem befreien, was beim
+// Kopieren aus einer Anleitung mitkommt – umschließende Anführungszeichen,
+// ein vorangestelltes `DATABASE_URL=`, Leerzeichen an den Rändern. Prisma
+// liest die Umgebung selbst, also muss das geschehen, bevor der Client
+// entsteht.
+adressenBereinigen();
 
 /**
  * Eine einzige Prisma-Verbindung für den ganzen Prozess.
