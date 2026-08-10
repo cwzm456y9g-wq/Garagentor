@@ -47,11 +47,37 @@ npm run paket
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-cp -R "$WURZEL/paket"/. "$TMP"/
+# Die Anwendung liegt eine Ebene tiefer, im Ordner `anwendung/`.
+#
+# Das ist kein Schönheitsentscheid, sondern Notwehr gegen `npm install`:
+# Ausrollwerkzeuge führen den Befehl gern ungefragt im Wurzelverzeichnis aus.
+# Da unsere package.json dort keine Abhängigkeiten nennt, hielte npm alles in
+# einem danebenliegenden `node_modules` für überflüssig und räumte es weg –
+# also genau die Laufzeit, die wir mitliefern. Liegt sie in `anwendung/`,
+# schaut npm gar nicht hin.
+mkdir -p "$TMP/anwendung"
+cp -R "$WURZEL/paket"/. "$TMP/anwendung"/
 
 # Next.js legt seinem Bau eigene .gitignore-Dateien bei. Die würden genau das
 # aussperren, was hier hinein soll.
 find "$TMP" -name .gitignore -delete
+
+# Zwei Einstiegspunkte im Wurzelverzeichnis, damit jede übliche Voreinstellung
+# trifft: Die einen Werkzeuge suchen `server.js`, die anderen `index.js`.
+cat > "$TMP/server.js" <<'EINSTIEG'
+// Startet die Anwendung, die in `anwendung/` liegt.
+//
+// Next.js' eigenständige Startdatei setzt ihr Arbeitsverzeichnis selbst, sie
+// darf also von überall aufgerufen werden. Diese Datei existiert nur, damit
+// ein Ausrollwerkzeug im Wurzelverzeichnis fündig wird.
+require('./anwendung/apps/web/server.js');
+EINSTIEG
+cp "$TMP/server.js" "$TMP/index.js"
+
+# Die vom Bau mitgebrachte package.json in `anwendung/` nennt noch Workspaces
+# und einen Next.js-Baubefehl. Dort schaut zwar niemand hin, aber ein Werkzeug,
+# das doch hineinsieht, soll nicht auf die Idee kommen zu bauen.
+rm -f "$TMP/anwendung/package.json"
 
 # Die package.json des Quellprojekts wandert unverändert in den eigenständigen
 # Bau. Darin stehen `"build": "next build"` und die Workspace-Angabe – für ein
@@ -77,14 +103,14 @@ cat > "$TMP/package.json" <<PAKET
   },
   "scripts": {
     "build": "echo 'Bereits gebaut – dieser Branch enthält das Ergebnis.'",
-    "start": "node apps/web/server.js"
+    "start": "node server.js"
   }
 }
 PAKET
 
 # Dieselbe Behandlung für die Datei der Anwendung: Sie bleibt liegen, weil die
 # Modulauflösung sie braucht, verliert aber ihre Bau- und Werkzeugbefehle.
-node - "$TMP/apps/web/package.json" <<'KNOTEN'
+node - "$TMP/anwendung/apps/web/package.json" <<'KNOTEN'
 const fs = require('node:fs');
 const pfad = process.argv[2];
 const paket = JSON.parse(fs.readFileSync(pfad, 'utf8'));
@@ -105,17 +131,21 @@ Gebaut aus: \`$HERKUNFT\` – $BESCHREIBUNG
 
 ## Einrichtung in hPanel
 
-| Feld             | Wert                  |
-| ---------------- | --------------------- |
-| Framework        | **Other**             |
-| Entry file       | \`apps/web/server.js\`  |
-| Output directory | leer lassen           |
-| Node-Version     | 22 (mindestens 20.11) |
+| Feld                | Wert                  |
+| ------------------- | --------------------- |
+| Framework           | **Other**             |
+| Startdatei          | \`server.js\`          |
+| Startbefehl         | \`npm start\`          |
+| Build-Befehl        | **leer**              |
+| Installationsbefehl | **leer**              |
+| Ausgabeverzeichnis  | **leer**              |
+| Node-Version        | 22 (mindestens 20.11) |
 
-Es gibt **keinen Build-Befehl** – die Anwendung ist bereits gebaut. Wählt man
-„Next.js" statt „Other", versucht die Plattform einen Bau und scheitert daran,
-dass hier kein Quelltext liegt. Das ist kein Mangel, sondern der Zweck dieses
-Branches.
+Es gibt **keinen Build-Befehl** – die Anwendung ist bereits gebaut. Und keinen
+Installationsbefehl: `npm install` würde im Wurzelverzeichnis nichts finden und
+könnte danebenliegende Laufzeit wegräumen. Deshalb liegt die Anwendung in
+\`anwendung/\`, wo npm nicht hinsieht, und \`server.js\` im Wurzelverzeichnis
+startet sie.
 
 ## Umgebungsvariablen
 
@@ -140,7 +170,7 @@ git \
 
 $BESCHREIBUNG
 
-Erzeugt von tools/hostinger-branch.sh. Startdatei: apps/web/server.js"
+Erzeugt von tools/hostinger-branch.sh. Startdatei: server.js"
 
 git remote add origin "$FERNE"
 
@@ -156,9 +186,11 @@ Branch '$BRANCH' steht: $DATEIEN Dateien, $GROESSE, gebaut aus $HERKUNFT
 
 In hPanel unter „Node.js" eintragen:
 
-  Repository    $FERNE
-  Branch        $BRANCH
-  Startdatei    apps/web/server.js
-  Build-Befehl  (leer lassen)
+  Repository            $FERNE
+  Branch                $BRANCH
+  Startdatei            server.js       (oder Startbefehl: npm start)
+  Build-Befehl          leer
+  Installationsbefehl   leer
+  Ausgabeverzeichnis    leer
 
 HINWEIS
