@@ -73,6 +73,9 @@ function tlsEinstellung(): PoolConfig['ssl'] {
  */
 const VERBINDUNGEN = Number.parseInt(process.env.DATABASE_POOL_MAX ?? '', 10) || 5;
 
+/** Wie lange eine einzelne Abfrage dauern darf, bevor sie abgebrochen wird. */
+const ABFRAGE_GEDULD_MS = 20_000;
+
 function clientErzeugen(): PrismaClient {
   const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL,
@@ -84,6 +87,22 @@ function clientErzeugen(): PrismaClient {
     // Die Überwachung hielt den Prozess für hängend. Ein Fehler nach zehn
     // Sekunden ist besser als eine Antwort, die nie kommt.
     connectionTimeoutMillis: 10_000,
+
+    // Die vorige Grenze deckt nur den Aufbau der Verbindung ab. Steht sie
+    // erst, kann eine Abfrage weiterhin unbegrenzt hängen – und mit ihr die
+    // Anmeldung, die darauf wartet. Zwei Grenzen, weil sie an verschiedenen
+    // Enden greifen:
+    //
+    //   query_timeout      bricht im Client ab, wenn keine Antwort kommt –
+    //                      wirkt auch dann, wenn die Gegenstelle schweigt.
+    //   statement_timeout  wird der Datenbank mitgeteilt, die die Abfrage
+    //                      selbst beendet. So bleibt dort nichts stehen und
+    //                      belegt eine der wenigen Verbindungen.
+    //
+    // Zwanzig Sekunden sind für jede Abfrage dieser Anwendung reichlich; die
+    // längste – der Buchungsstapel eines Jahres – bleibt weit darunter.
+    query_timeout: ABFRAGE_GEDULD_MS,
+    statement_timeout: ABFRAGE_GEDULD_MS,
   });
 
   return new PrismaClient({

@@ -65,6 +65,11 @@ export const GET = offen(async () => {
     status: befund === 'ok' ? 'ok' : 'eingeschränkt',
     database: befund,
     ...(details ? { detail: details } : {}),
+    // Welcher Bau gerade läuft. Beim Ausrollen bleibt sonst offen, ob die
+    // Änderung überhaupt angekommen ist – eine Frage, die schon mehrere Runden
+    // gekostet hat, in denen an einem längst behobenen Fehler weitergesucht
+    // wurde. Der Wert wird beim Bau des Ausrollzweigs eingesetzt.
+    stand: process.env.GARAGENTOR_STAND ?? 'unbekannt (kein Ausrollpaket)',
     timestamp: new Date().toISOString(),
   });
 });

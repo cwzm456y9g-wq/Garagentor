@@ -64,7 +64,15 @@ find "$TMP" -name .gitignore -delete
 
 # Zwei Einstiegspunkte im Wurzelverzeichnis, damit jede übliche Voreinstellung
 # trifft: Die einen Werkzeuge suchen `server.js`, die anderen `index.js`.
-cat > "$TMP/server.js" <<'EINSTIEG'
+# Der Stand wird eingebacken, damit die Anwendung selbst sagen kann, welcher
+# Bau gerade läuft. Ohne das bleibt nach jedem Ausrollen die Frage offen, ob
+# die Änderung überhaupt angekommen ist – und die hat schon mehrere Runden
+# gekostet, in denen an einem längst behobenen Fehler weitergesucht wurde.
+cat > "$TMP/server.js" <<EINSTIEG_STAND
+process.env.GARAGENTOR_STAND = '$HERKUNFT vom $(date -u +%Y-%m-%dT%H:%MZ)';
+EINSTIEG_STAND
+
+cat >> "$TMP/server.js" <<'EINSTIEG'
 // Startet die Anwendung, die in `anwendung/` liegt.
 //
 // Next.js' eigenständige Startdatei setzt ihr Arbeitsverzeichnis selbst, sie
@@ -90,7 +98,7 @@ process.env.HOSTNAME = process.env.BIND_HOST || '0.0.0.0';
 // Damit im Laufzeitprotokoll steht, wo tatsächlich gehorcht wird. Genau diese
 // Zeile hat beim letzten Mal gefehlt.
 console.log(
-  `[Garagentor] Adresse ${process.env.HOSTNAME}, Port ${process.env.PORT || 3000}, Node ${process.version}`,
+  `[Garagentor] Stand ${process.env.GARAGENTOR_STAND}, Adresse ${process.env.HOSTNAME}, Port ${process.env.PORT || 3000}, Node ${process.version}`,
 );
 
 // Manche Ausrollwerkzeuge reichen in PORT keinen Port, sondern den Pfad eines
