@@ -4,7 +4,7 @@ import { customerDisplayName, formatDate, inspectionTypeLabels } from '@garagent
 import Link from 'next/link';
 import { useState } from 'react';
 import { ListPage } from '@/components/list-page';
-import { Badge, PageHeader, Select } from '@/components/ui';
+import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
 import { inspectionResult } from '@/lib/status';
 import type { Inspection } from '@/lib/types';
@@ -23,6 +23,7 @@ export default function InspectionsPage() {
       <PageHeader
         title="Prüfungen"
         subtitle="Wiederkehrende Prüfung kraftbetätigter Tore nach ASR A1.7"
+        actions={<LinkButton href="/pruefungen/neu">Prüfung anlegen</LinkButton>}
       />
 
       <ListPage
@@ -30,7 +31,7 @@ export default function InspectionsPage() {
         searchPlaceholder="Protokollnummer, prüfende Person oder Anlage …"
         rowKey={(inspection) => inspection.id}
         emptyTitle="Noch keine Prüfprotokolle"
-        emptyDescription="Eine Prüfung wird auf der Seite der jeweiligen Toranlage begonnen."
+        emptyDescription="Legen Sie die erste Prüfung an – hier oder auf der Seite der Toranlage."
         filters={
           <>
             <Select

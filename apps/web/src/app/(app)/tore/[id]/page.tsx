@@ -10,43 +10,29 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { use, useState } from 'react';
+import { use } from 'react';
 import {
   Badge,
   Button,
   Card,
   EmptyState,
   ErrorState,
-  Field,
   LoadingState,
   LinkButton,
   PageHeader,
-  Select,
   Table,
 } from '@/components/ui';
 import { api } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useAction, useApi } from '@/lib/hooks';
 import { defectSeverity, defectStatus, doorStatus, inspectionResult } from '@/lib/status';
-import type { Door, Employee } from '@/lib/types';
+import type { Door } from '@/lib/types';
 
 export default function DoorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<Door>(`/doors/${id}`);
-  // Für den Start einer Prüfung kommen nur Sachkundige infrage.
-  const inspectors = useApi<{ items: Employee[] }>('/employees', {
-    qualifiedInspectorsOnly: true,
-    pageSize: 50,
-  });
-
-  const [startOpen, setStartOpen] = useState(false);
-  const [inspectorId, setInspectorId] = useState('');
-
-  const start = useAction((body: Record<string, unknown>) =>
-    api.post<{ id: string }>(`/doors/${id}/inspections`, body),
-  );
   const resolve = useAction((defectId: string) => api.post(`/defects/${defectId}/resolve`, {}));
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -81,60 +67,18 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
                   Offene Prüfung fortsetzen
                 </Button>
               ) : (
-                <Button onClick={() => setStartOpen((open) => !open)}>Prüfung nach ASR A1.7</Button>
+                <LinkButton href={`/pruefungen/neu?tor=${data.id}`}>
+                  Prüfung nach ASR A1.7
+                </LinkButton>
               ))}
           </>
         }
       />
 
-      {(start.error ?? resolve.error) && (
+      {resolve.error && (
         <div className="mb-4">
-          <ErrorState message={(start.error ?? resolve.error)!} />
+          <ErrorState message={resolve.error} />
         </div>
-      )}
-
-      {startOpen && (
-        <Card title="Wiederkehrende Prüfung beginnen" className="mb-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field
-              label="Prüfende Person"
-              htmlFor="inspectorId"
-              hint="Nur Mitarbeiter mit gültiger Sachkunde."
-              required
-            >
-              <Select
-                id="inspectorId"
-                value={inspectorId}
-                onChange={(event) => setInspectorId(event.target.value)}
-              >
-                <option value="">Bitte wählen …</option>
-                {(inspectors.data?.items ?? []).map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.firstName} {employee.lastName}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <div className="flex items-end gap-2 sm:col-span-2">
-              <Button
-                loading={start.loading}
-                disabled={!inspectorId}
-                onClick={async () => {
-                  const created = await start.run({
-                    inspectorId,
-                    type: 'WIEDERKEHRENDE_PRUEFUNG',
-                  });
-                  if (created) router.push(`/pruefungen/${created.id}`);
-                }}
-              >
-                Prüfprotokoll anlegen
-              </Button>
-              <Button variant="secondary" onClick={() => setStartOpen(false)}>
-                Abbrechen
-              </Button>
-            </div>
-          </div>
-        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-3">
