@@ -7,6 +7,7 @@ import { use, useState } from 'react';
 import { DocumentItems } from '@/components/document-items';
 import { MailButton } from '@/components/mail-dialog';
 import { Badge, Button, Card, ErrorState, LoadingState, PageHeader, Table } from '@/components/ui';
+import { Bestaetigen } from '@/components/bestaetigen';
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
 import { orderStatus, quoteStatus } from '@/lib/status';
@@ -26,11 +27,19 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
   const convert = useAction(() =>
     api.post<{ id: string }>(`/quotes/${id}/convert`, { type: 'MONTAGE' }),
   );
+  const entfernen = useAction(() => api.delete<{ deleted?: boolean }>(`/quotes/${id}`));
+  const [loeschenOffen, setLoeschenOffen] = useState(false);
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <LoadingState />;
 
   const status = quoteStatus(data.status);
+
+  // Ein Entwurf wird entfernt, alles Weitere nur storniert: Versendetes
+
+  // verschwindet nicht spurlos, dafür ist es aus dem Haus gegangen.
+
+  const istEntwurf = data.status === 'ENTWURF';
   const actionError = send.error ?? accept.error ?? reject.error ?? convert.error;
 
   async function run(action: () => Promise<unknown>) {
@@ -82,14 +91,54 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
                 In Auftrag überführen
               </Button>
             )}
+            {(data.orders ?? []).length === 0 && data.status !== 'STORNIERT' && (
+              <Button variant="ghost" onClick={() => setLoeschenOffen(true)}>
+                {istEntwurf ? 'Löschen' : 'Stornieren'}
+              </Button>
+            )}
           </>
         }
       />
 
-      {actionError && (
+      {actionError && !loeschenOffen && (
         <div className="mb-4">
           <ErrorState message={actionError} />
         </div>
+      )}
+
+      {loeschenOffen && (
+        <Bestaetigen
+          titel={
+            istEntwurf
+              ? `Angebot ${data.quoteNumber} löschen`
+              : `Angebot ${data.quoteNumber} stornieren`
+          }
+          knopf={istEntwurf ? 'Endgültig löschen' : 'Stornieren'}
+          laeuft={entfernen.loading}
+          fehler={entfernen.error}
+          beschreibung={
+            istEntwurf ? (
+              <>
+                Der Entwurf wird vollständig entfernt. Versendet wurde er nicht, ein Auftrag hängt
+                nicht daran – es geht nichts verloren, was jemand außerhalb des Hauses gesehen hat.
+              </>
+            ) : (
+              <>
+                Das Angebot ist bereits aus dem Haus gegangen und wird deshalb nicht gelöscht,
+                sondern als storniert gekennzeichnet. Es bleibt in der Liste sichtbar und
+                nachvollziehbar.
+              </>
+            )
+          }
+          onAbbrechen={() => setLoeschenOffen(false)}
+          onBestaetigen={async () => {
+            const ergebnis = await entfernen.run();
+            if (!ergebnis) return;
+            setLoeschenOffen(false);
+            if (istEntwurf) router.push('/angebote');
+            else reload();
+          }}
+        />
       )}
 
       {rejectOpen && (

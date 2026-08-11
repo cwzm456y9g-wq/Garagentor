@@ -13,7 +13,9 @@ import {
   type PaymentMethod,
 } from '@garagentor/shared';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { use, useState, type FormEvent } from 'react';
+import { Bestaetigen } from '@/components/bestaetigen';
 import { DocumentItems } from '@/components/document-items';
 import { MailButton } from '@/components/mail-dialog';
 import {
@@ -37,6 +39,7 @@ import type { Invoice } from '@/lib/types';
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { hasRole } = useAuth();
+  const router = useRouter();
   const { data, loading, error, reload } = useApi<Invoice>(`/invoices/${id}`);
 
   const pdf = useAction(() => api.openFile(`/invoices/${id}/pdf`));
@@ -51,12 +54,19 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     api.post(`/invoices/${id}/payments`, body),
   );
   const dun = useAction(() => api.post(`/invoices/${id}/dunnings`, {}));
-  const cancel = useAction(() => api.post(`/invoices/${id}/cancel`, {}));
+  const cancel = useAction((grund?: string) =>
+    api.post(`/invoices/${id}/cancel`, grund ? { reason: grund } : {}),
+  );
+  const [stornoOffen, setStornoOffen] = useState(false);
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <LoadingState />;
 
   const status = invoiceStatus(data.status);
+  // Ein Entwurf war nie ein Beleg: Der Server entfernt ihn, statt ihn zu
+  // stornieren. Beides „Stornieren" zu nennen hieße, den Knopf über sein
+  // eigenes Ergebnis lügen zu lassen.
+  const istEntwurf = data.status === 'ENTWURF';
   const open = data.openAmount ?? data.grossTotal - data.deductedAmount - data.paidAmount;
   const mayBook = hasRole('GESCHAEFTSFUEHRUNG', 'BUERO', 'BUCHHALTUNG');
   const actionError = send.error ?? pay.error ?? dun.error ?? cancel.error;
@@ -125,14 +135,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   </Button>
                 )}
                 {data.status !== 'STORNIERT' && (
-                  <Button
-                    variant="ghost"
-                    loading={cancel.loading}
-                    onClick={async () => {
-                      if (await cancel.run()) reload();
-                    }}
-                  >
-                    Stornieren
+                  <Button variant="ghost" onClick={() => setStornoOffen(true)}>
+                    {istEntwurf ? 'Entwurf löschen' : 'Stornieren'}
                   </Button>
                 )}
               </>
@@ -141,10 +145,52 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         }
       />
 
-      {actionError && (
+      {actionError && !stornoOffen && (
         <div className="mb-4">
           <ErrorState message={actionError} />
         </div>
+      )}
+
+      {stornoOffen && (
+        <Bestaetigen
+          titel={istEntwurf ? 'Entwurf löschen' : `Rechnung ${data.invoiceNumber} stornieren`}
+          knopf={istEntwurf ? 'Endgültig löschen' : 'Stornieren'}
+          grundLabel={istEntwurf ? undefined : 'Grund der Stornierung'}
+          laeuft={cancel.loading}
+          fehler={cancel.error}
+          beschreibung={
+            istEntwurf ? (
+              <>
+                Der Entwurf {data.invoiceNumber} wird vollständig entfernt. Er war nie ein Beleg –
+                versendet wurde er nicht, gebucht auch nicht. Der Vorgang wird im Änderungsprotokoll
+                vermerkt.
+              </>
+            ) : (
+              <>
+                Die Rechnung bleibt erhalten und wird als storniert gekennzeichnet. Löschen ist
+                nicht möglich: Ein einmal ausgestellter Beleg muss nach den Grundsätzen zur
+                ordnungsmäßigen Buchführung nachvollziehbar bleiben.
+                {data.paidAmount > 0 && (
+                  <>
+                    {' '}
+                    Auf die Rechnung wurden bereits {data.paidAmount.toFixed(2)} € gezahlt – dafür
+                    entsteht automatisch eine Gutschrift.
+                  </>
+                )}{' '}
+                Offene Mahnungen werden abgebrochen.
+              </>
+            )
+          }
+          onAbbrechen={() => setStornoOffen(false)}
+          onBestaetigen={async (grund) => {
+            const ergebnis = await cancel.run(grund);
+            if (!ergebnis) return;
+            setStornoOffen(false);
+            // Nach dem Löschen gibt es nichts mehr nachzuladen.
+            if (istEntwurf) router.push('/rechnungen');
+            else reload();
+          }}
+        />
       )}
 
       {paymentOpen && (
