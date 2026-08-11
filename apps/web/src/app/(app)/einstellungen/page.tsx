@@ -9,6 +9,7 @@ import {
   Field,
   Input,
   LoadingState,
+  LinkButton,
   PageHeader,
   Select,
   Table,
@@ -86,6 +87,7 @@ export default function SettingsPage() {
       <PageHeader
         title="Einstellungen"
         subtitle="Firmendaten, Belegvorgaben, Mahnstufen, Prüfvorgaben und Nummernkreise"
+        actions={<LinkButton href="/einstellungen/benutzer">Benutzer verwalten</LinkButton>}
       />
 
       {settings.error ? (

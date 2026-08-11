@@ -663,6 +663,23 @@ export interface VacationBalance {
   rest: number;
 }
 
+/**
+ * Ein Anmeldekonto. Der Passwort-Hash verlässt den Server nie – deshalb steht
+ * er hier auch nicht.
+ */
+export interface Zugang {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: Role;
+  active: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  employeeId: string | null;
+  employee?: { id: string; employeeNumber: string } | null;
+}
+
 export interface Employee {
   id: string;
   employeeNumber: string;
