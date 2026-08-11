@@ -679,6 +679,11 @@ export interface Employee {
   hourlyCost: number | null;
   hourlyRate: number | null;
   vacationDays: number;
+  street: string | null;
+  zip: string | null;
+  city: string | null;
+  birthDate: string | null;
+  notes: string | null;
   active: boolean;
   user?: { id: string; email: string; role: Role; active?: boolean } | null;
   qualifications?: Qualification[];

@@ -3,10 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { CustomerPicker } from '@/components/customer-picker';
+import { EmployeePicker } from '@/components/employee-picker';
 import { Button, Card, ErrorState, Field, Input, Select } from '@/components/ui';
 import { api } from '@/lib/api-client';
 import { useAction } from '@/lib/hooks';
-import type { Door, Employee, ServiceReport } from '@/lib/types';
+import type { Door, ServiceReport } from '@/lib/types';
 
 interface FormValues {
   customerId: string;
@@ -65,7 +66,6 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
     followUpNote: '',
   });
   const [doors, setDoors] = useState<Door[]>([]);
-  const [technicians, setTechnicians] = useState<Employee[]>([]);
 
   const save = useAction(async (payload: Record<string, unknown>) =>
     api.post<ServiceReport>('/service-reports', payload),
@@ -106,21 +106,6 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
       aktuell = false;
     };
   }, [values.customerId]);
-
-  useEffect(() => {
-    let aktuell = true;
-
-    api
-      .list<Employee>('/employees', { pageSize: 200, active: true })
-      .then((seite) => {
-        if (aktuell) setTechnicians(seite.items);
-      })
-      .catch(() => setTechnicians([]));
-
-    return () => {
-      aktuell = false;
-    };
-  }, []);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((current) => {
@@ -182,18 +167,11 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
           </Field>
 
           <Field label="Monteur" htmlFor="technicianId">
-            <Select
+            <EmployeePicker
               id="technicianId"
               value={values.technicianId}
-              onChange={(e) => set('technicianId', e.target.value)}
-            >
-              <option value="">Noch offen</option>
-              {technicians.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.firstName} {person.lastName}
-                </option>
-              ))}
-            </Select>
+              onChange={(id) => set('technicianId', id)}
+            />
           </Field>
 
           <Field label="Datum" htmlFor="date">

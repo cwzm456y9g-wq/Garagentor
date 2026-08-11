@@ -16,6 +16,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  LinkButton,
   LoadingState,
   PageHeader,
 } from '@/components/ui';
@@ -67,6 +68,7 @@ export default function AppointmentsPage() {
               aria-label="Bis"
               className="w-40"
             />
+            <LinkButton href="/termine/neu">Termin anlegen</LinkButton>
           </div>
         }
       />

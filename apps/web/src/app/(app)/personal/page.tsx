@@ -1,9 +1,10 @@
 'use client';
 
 import { employmentTypeLabels, formatDate, formatNumber } from '@garagentor/shared';
+import Link from 'next/link';
 import { useState } from 'react';
 import { ListPage } from '@/components/list-page';
-import { Badge, Card, EmptyState, LoadingState, PageHeader } from '@/components/ui';
+import { Badge, Card, EmptyState, LinkButton, LoadingState, PageHeader } from '@/components/ui';
 import { useApi, useList } from '@/lib/hooks';
 import type { Employee, Qualification } from '@/lib/types';
 
@@ -20,7 +21,11 @@ export default function StaffPage() {
 
   return (
     <>
-      <PageHeader title="Personal" subtitle="Mitarbeiter, Qualifikationen und Sachkundenachweise" />
+      <PageHeader
+        title="Personal"
+        subtitle="Mitarbeiter, Qualifikationen und Sachkundenachweise"
+        actions={<LinkButton href="/personal/neu">Mitarbeiter anlegen</LinkButton>}
+      />
 
       <Card title="Ablaufende Qualifikationen" className="mb-6" bodyClassName="">
         {expiring.loading ? (
@@ -88,8 +93,13 @@ export default function StaffPage() {
         }
         renderRow={(employee) => (
           <>
-            <td className="tabular whitespace-nowrap font-medium text-slate-900">
-              {employee.employeeNumber}
+            <td className="tabular whitespace-nowrap">
+              <Link
+                href={`/personal/${employee.id}`}
+                className="text-verweis font-medium hover:underline"
+              >
+                {employee.employeeNumber}
+              </Link>
             </td>
             <td>
               <span className="text-slate-900">
