@@ -9,7 +9,7 @@ import {
 import Link from 'next/link';
 import { useState } from 'react';
 import { ListPage } from '@/components/list-page';
-import { Badge, PageHeader, Select } from '@/components/ui';
+import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
 import { doorStatus, inspectionDueTone } from '@/lib/status';
 import type { Door } from '@/lib/types';
@@ -29,14 +29,18 @@ export default function DoorsPage() {
 
   return (
     <>
-      <PageHeader title="Toranlagen" subtitle="Anlagenbestand mit Prüffristen nach ASR A1.7" />
+      <PageHeader
+        title="Toranlagen"
+        subtitle="Anlagenbestand mit Prüffristen nach ASR A1.7"
+        actions={<LinkButton href="/tore/neu">Toranlage anlegen</LinkButton>}
+      />
 
       <ListPage
         state={state}
         searchPlaceholder="Nummer, Einbauort, Hersteller oder Seriennummer …"
         rowKey={(door) => door.id}
         emptyTitle="Keine Toranlagen erfasst"
-        emptyDescription="Anlagen werden beim Kunden angelegt und tragen die Prüffristen."
+        emptyDescription="Legen Sie die erste Anlage an – Prüfungen und Serviceberichte hängen daran."
         filters={
           <>
             <Select

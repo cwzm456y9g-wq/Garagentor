@@ -297,6 +297,7 @@ export interface Door {
   weightKg: number | null;
   driveManufacturer: string | null;
   driveModel: string | null;
+  driveSerialNumber: string | null;
   installationDate: string | null;
   warrantyUntil: string | null;
   nextInspectionDue: string | null;

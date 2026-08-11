@@ -187,14 +187,25 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           <Card
             title="Toranlagen"
             actions={
-              <Link href="/tore" className="text-verweis text-sm font-medium hover:underline">
-                Alle Anlagen
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/tore/neu?kunde=${id}`}
+                  className="text-verweis text-sm font-medium hover:underline"
+                >
+                  Anlage erfassen
+                </Link>
+                <Link href="/tore" className="text-verweis text-sm font-medium hover:underline">
+                  Alle Anlagen
+                </Link>
+              </div>
             }
             bodyClassName=""
           >
             {(doors.data?.items ?? []).length === 0 ? (
-              <EmptyState title="Keine Toranlage erfasst" />
+              <EmptyState
+                title="Keine Toranlage erfasst"
+                description="Prüfungen nach ASR A1.7 und Serviceberichte setzen eine erfasste Anlage voraus."
+              />
             ) : (
               <Table>
                 <thead>

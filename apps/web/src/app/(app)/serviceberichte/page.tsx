@@ -4,7 +4,7 @@ import { formatDate, formatHours, formatNumber } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
 import { ListPage } from '@/components/list-page';
-import { Badge, PageHeader, Select } from '@/components/ui';
+import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
 import type { ServiceReport } from '@/lib/types';
 
@@ -23,6 +23,7 @@ export default function ServiceReportsPage() {
       <PageHeader
         title="Serviceberichte"
         subtitle="Einsatzdokumentation mit Zeiten, Material und Unterschrift"
+        actions={<LinkButton href="/serviceberichte/neu">Bericht anlegen</LinkButton>}
       />
 
       <ListPage

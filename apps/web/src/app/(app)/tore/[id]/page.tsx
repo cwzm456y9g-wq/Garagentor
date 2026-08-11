@@ -19,6 +19,7 @@ import {
   ErrorState,
   Field,
   LoadingState,
+  LinkButton,
   PageHeader,
   Select,
   Table,
@@ -67,14 +68,22 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
           </span>
         }
         actions={
-          data.operationMode === 'KRAFTBETAETIGT' &&
-          (openInspection ? (
-            <Button onClick={() => router.push(`/pruefungen/${openInspection.id}`)}>
-              Offene Prüfung fortsetzen
-            </Button>
-          ) : (
-            <Button onClick={() => setStartOpen((open) => !open)}>Prüfung nach ASR A1.7</Button>
-          ))
+          <>
+            <LinkButton href={`/serviceberichte/neu?tor=${data.id}`} variant="secondary">
+              Servicebericht
+            </LinkButton>
+            <LinkButton href={`/tore/${data.id}/bearbeiten`} variant="secondary">
+              Bearbeiten
+            </LinkButton>
+            {data.operationMode === 'KRAFTBETAETIGT' &&
+              (openInspection ? (
+                <Button onClick={() => router.push(`/pruefungen/${openInspection.id}`)}>
+                  Offene Prüfung fortsetzen
+                </Button>
+              ) : (
+                <Button onClick={() => setStartOpen((open) => !open)}>Prüfung nach ASR A1.7</Button>
+              ))}
+          </>
         }
       />
 
