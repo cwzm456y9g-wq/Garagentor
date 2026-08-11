@@ -11,10 +11,10 @@ import {
   INTEREST_POINTS,
   type OperationMode,
 } from '@garagentor/shared';
-import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { skriptClient } from './verbindung';
 
-const prisma = new PrismaClient();
+const prisma = skriptClient();
 
 const DEMO_PASSWORD = 'Garagentor2026!';
 

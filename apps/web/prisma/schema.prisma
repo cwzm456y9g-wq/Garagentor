@@ -7,17 +7,35 @@
 generator client {
   provider = "prisma-client-js"
 
-  // Im Betrieb spricht Prisma über einen Treiber in JavaScript (`pg`, siehe
-  // src/server/prisma.ts) statt über seinen eigenen in Rust. Grund war ein
-  // Absturz auf Hostingers Webhosting – „PANIC: timer has gone away" –, den
-  // die dortige Beschränkung von Prozessen und Zeitgebern auslöst.
+  // Prisma arbeitet hier vollständig ohne seinen Rust-Anteil.
   //
-  // Die kompilierten Bibliotheken bleiben trotzdem im Bau: `prisma migrate`
-  // und `prisma db seed` benutzen sie weiterhin. Damit dieselben Befehle auch
-  // auf einem älteren Server laufen, entsteht neben der eigenen Variante die
-  // für OpenSSL 1.1 – daran war der erste Anlauf dort gescheitert.
-  binaryTargets   = ["native", "debian-openssl-1.1.x"]
-  previewFeatures = ["driverAdapters"]
+  // Das ist keine Geschmacksfrage, sondern das Ergebnis einer langen Suche.
+  // Auf Hostingers geteiltem Webhosting stürzte die mitgelieferte
+  // Rust-Bibliothek zuerst ab („PANIC: timer has gone away"). Der Wechsel auf
+  // einen Treiber in JavaScript (`pg`, siehe src/server/prisma.ts) hat aber
+  // nur das **Netz** verlegt: Die Abfragen selbst baute weiterhin dieselbe
+  // Bibliothek, und sie stürzte nun nicht mehr ab, sondern blieb stehen.
+  // Von außen sah das aus wie eine unerreichbare Datenbank – während eine
+  // Verbindung von Hand daneben in 389 Millisekunden antwortete.
+  //
+  // Zwei Angaben sind dafür nötig, und beide einzeln reichen nicht:
+  //
+  //   queryCompiler   baut die Abfragen als WebAssembly statt in Rust.
+  //   engineType      = "client" – erst das lässt die kompilierte Bibliothek
+  //                     wirklich weg. Mit „library" (der Voreinstellung) wird
+  //                     sie weiter mitgeliefert und geladen.
+  //
+  // Nachgeprüft: Im fertigen Paket liegt keine einzige `.so.node` mehr, es ist
+  // von 92 auf 55 MB geschrumpft, und alles läuft – Anmeldung, Belege, PDF,
+  // DATEV, Nummernkreise, und vier gleichzeitige Lagerabgänge von je 10 aus
+  // 100 ergeben weiterhin 60. Die Sperren über SELECT … FOR UPDATE tragen also
+  // auch hier.
+  //
+  // `binaryTargets` steht bewusst nicht mehr da: Es zwang die Bibliothek
+  // zurück ins Paket. Migrationen brauchen sie nicht – dafür bringt die
+  // Prisma-Kommandozeile ihr eigenes Werkzeug mit.
+  engineType      = "client"
+  previewFeatures = ["driverAdapters", "queryCompiler"]
 }
 
 // Zwei Verbindungen, weil Supabase zwei verlangt:

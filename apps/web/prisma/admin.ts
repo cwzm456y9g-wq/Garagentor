@@ -8,10 +8,10 @@
  * Name und Rolle aktualisiert. Damit dient das Skript auch dazu, ein
  * vergessenes Administratorpasswort zurückzusetzen.
  */
-import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { skriptClient } from './verbindung';
 
-const prisma = new PrismaClient();
+const prisma = skriptClient();
 
 const MIN_PASSWORT_LAENGE = 12;
 
