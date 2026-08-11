@@ -15,12 +15,22 @@ import { useAction } from '@/lib/hooks';
 
 export type MailBelegart = 'ANGEBOT' | 'RECHNUNG' | 'MAHNUNG' | 'SERVICEBERICHT' | 'PRUEFPROTOKOLL';
 
+/** Ein weiterer Beleg, der im selben Umschlag mitgehen kann. */
+interface Beilage {
+  art: MailBelegart;
+  id: string;
+  bezeichnung: string;
+  zusatz: string;
+  datum: string;
+}
+
 interface Vorschau {
   an: string;
   betreff: string;
   text: string;
   anhang: string;
   empfaengerFehlt: boolean;
+  beilagen: Beilage[];
 }
 
 interface MailStatus {
@@ -44,6 +54,8 @@ export interface MailDialogProps {
 export function MailDialog({ art, id, onClose }: MailDialogProps) {
   const [entwurf, setEntwurf] = useState<Vorschau | null>(null);
   const [kopie, setKopie] = useState('');
+  // Bewusst leer vorbelegt: Was einem Kunden zugeht, hakt ein Mensch an.
+  const [gewaehlt, setGewaehlt] = useState<string[]>([]);
   const [ladefehler, setLadefehler] = useState<string | null>(null);
   const [status, setStatus] = useState<MailStatus | null>(null);
   const [gesendet, setGesendet] = useState(false);
@@ -86,6 +98,9 @@ export function MailDialog({ art, id, onClose }: MailDialogProps) {
       kopie: kopie || undefined,
       betreff: entwurf.betreff,
       text: entwurf.text,
+      zusatz: entwurf.beilagen
+        .filter((beilage) => gewaehlt.includes(beilage.id))
+        .map((beilage) => ({ art: beilage.art, id: beilage.id })),
     });
 
     if (ergebnis) setGesendet(true);
@@ -179,9 +194,50 @@ export function MailDialog({ art, id, onClose }: MailDialogProps) {
                 />
               </Field>
 
+              {entwurf.beilagen.length > 0 && (
+                <fieldset className="rounded-md border border-slate-200 p-3">
+                  <legend className="px-1 text-sm font-medium text-slate-700">
+                    Weitere Belege beilegen
+                  </legend>
+                  <p className="mb-2 text-xs text-slate-500">
+                    Gehört zum selben Vorgang. Das Prüfprotokoll nach ASR A1.7 braucht der Kunde für
+                    seine Unterlagen – zusammen mit der Rechnung in einem Umschlag erspart es ihm
+                    das Nachfragen.
+                  </p>
+                  <div className="space-y-1.5">
+                    {entwurf.beilagen.map((beilage) => (
+                      <label
+                        key={beilage.id}
+                        className="flex items-start gap-2 text-sm text-slate-700"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-slate-300"
+                          checked={gewaehlt.includes(beilage.id)}
+                          onChange={(event) =>
+                            setGewaehlt((bisher) =>
+                              event.target.checked
+                                ? [...bisher, beilage.id]
+                                : bisher.filter((eintrag) => eintrag !== beilage.id),
+                            )
+                          }
+                        />
+                        <span>
+                          {beilage.bezeichnung}
+                          {beilage.zusatz && (
+                            <span className="block text-xs text-slate-500">{beilage.zusatz}</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
               <p className="text-xs text-slate-500">
-                Anhang: {entwurf.anhang} – wird beim Versand aus dem aktuellen Stand des Belegs
-                erzeugt.
+                Anhang: {entwurf.anhang}
+                {gewaehlt.length > 0 && ` und ${gewaehlt.length} weitere`} – wird beim Versand aus
+                dem aktuellen Stand der Belege erzeugt.
               </p>
 
               {senden.error && <ErrorState message={senden.error} />}

@@ -17,6 +17,11 @@ export const mailPreviewSchema = z
 
 export type MailPreviewDto = z.infer<typeof mailPreviewSchema>;
 
+/** Ein weiterer Beleg, der derselben Mail beiliegt. */
+export const beilageSchema = z.object({ art: belegart, id: z.string() }).strict();
+
+export type BeilageDto = z.infer<typeof beilageSchema>;
+
 export const sendMailSchema = z
   .object({
     art: belegart,
@@ -29,6 +34,18 @@ export const sendMailSchema = z
     // Ein Anschreiben ist kein Aufsatz; die Grenze hält versehentlich
     // eingefügte Belegtexte aus dem Rumpf heraus.
     text: z.string().min(1).max(10_000),
+    /**
+     * Weitere Belege im selben Umschlag.
+     *
+     * Der Anlass ist der Alltag im Betrieb: Zur Rechnung über eine Prüfung
+     * gehört das Prüfprotokoll. Wer beides einzeln verschickt, zwingt den
+     * Kunden, zwei Mails zusammenzusuchen – und sich selbst, zweimal denselben
+     * Vorgang zu erklären.
+     *
+     * Zehn ist keine fachliche Grenze, sondern eine gegen Versehen: Kein
+     * Postfach nimmt einen Umschlag mit dreißig PDF gern an.
+     */
+    zusatz: z.array(beilageSchema).max(10).optional(),
   })
   .strict();
 

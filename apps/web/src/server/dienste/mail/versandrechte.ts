@@ -7,13 +7,21 @@ import { verboten } from '@/server/fehler';
  *
  * Der Monteur soll den Bericht vom Einsatz mitschicken können, aber weder
  * Rechnungen noch Mahnungen – das ist dieselbe Grenze wie in der Buchhaltung.
+ *
+ * Umgekehrt darf die Buchhaltung Bericht und Prüfprotokoll verschicken. Das
+ * stand hier zunächst nicht und war eine Lücke, keine Absicht: Zur Rechnung
+ * über eine wiederkehrende Prüfung gehört das Protokoll nach ASR A1.7 in
+ * denselben Umschlag. Wer die Rechnung verschicken darf, muss auch den
+ * Nachweis dazulegen dürfen – sonst zerfällt ein Vorgang in zwei Mails von
+ * zwei Personen. Preisgegeben wird dabei nichts, was in der Rechnung nicht
+ * ohnehin stünde.
  */
 const VERSANDRECHTE: Record<MailDocumentType, Role[]> = {
   ANGEBOT: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO],
   RECHNUNG: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG],
   MAHNUNG: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG],
-  SERVICEBERICHT: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.MONTEUR],
-  PRUEFPROTOKOLL: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.MONTEUR],
+  SERVICEBERICHT: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG, Role.MONTEUR],
+  PRUEFPROTOKOLL: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG, Role.MONTEUR],
 };
 
 /**

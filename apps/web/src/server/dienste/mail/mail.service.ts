@@ -8,7 +8,7 @@ import {
 } from '@/server/nest-ersatz';
 
 import { dunningLevelLabels, type MailDocumentType, type Paginated } from '@garagentor/shared';
-import { EntityType, MailStatus } from '@prisma/client';
+import { EntityType, MailStatus, ServiceReportStatus } from '@prisma/client';
 import { createTransport, type Transporter } from 'nodemailer';
 import { aktuelleBenutzerId as currentUserId } from '@/server/kontext';
 import { paginate } from '@/server/anfrage';
@@ -24,6 +24,31 @@ import {
   type MailVorlage,
   type Platzhalter,
 } from './vorlagen';
+
+/**
+ * Wie groß alle Anhänge zusammen höchstens werden dürfen.
+ *
+ * Viele Postfächer weisen Umschläge über 20 MB ab, und ein Prüfprotokoll mit
+ * Fotos wird schnell groß. Die Grenze zieht bewusst darunter – so kommt eine
+ * verständliche Meldung, bevor der Mailserver eine unverständliche schickt.
+ */
+const ANHANG_GRENZE_BYTES = 15 * 1024 * 1024;
+
+/** Wie weit für Beilagen zurückgeschaut wird, wenn der Auftragsbezug fehlt. */
+const BEILAGEN_MONATE = 6;
+
+/** Damit die Auswahl eine Auswahl bleibt und keine Chronik. */
+const BEILAGEN_HOECHSTZAHL = 10;
+
+/** Ein Beleg, der zum selben Vorgang gehört und mitgeschickt werden kann. */
+export interface Beilage {
+  art: MailDocumentType;
+  id: string;
+  bezeichnung: string;
+  /** Anlage oder Einbauort, damit sich zwei Protokolle unterscheiden lassen. */
+  zusatz: string;
+  datum: string;
+}
 
 /** Was ein Beleg zum Anschreiben beisteuert. */
 interface BelegDaten {
@@ -102,6 +127,8 @@ export class MailService {
       anhang: `${beleg.reference}.pdf`,
       /** Fehlt beim Kunden die Adresse, muss sie von Hand ergänzt werden. */
       empfaengerFehlt: !beleg.empfaenger,
+      /** Belege, die zum selben Vorgang gehören und mitgeschickt werden können. */
+      beilagen: await this.beilagenVorschlaege(art, id),
     };
   }
 
@@ -132,7 +159,8 @@ export class MailService {
     }
 
     const einstellungen = await this.einstellungen();
-    const { buffer, dateiname } = await this.belegAlsPdf(dto.art, dto.id);
+    const anhaenge = await this.anhaengeBauen(dto);
+    const dateinamen = anhaenge.map((anhang) => anhang.filename);
 
     let status: MailStatus = MailStatus.GESENDET;
     let fehler: string | null = null;
@@ -151,7 +179,7 @@ export class MailService {
           : {}),
         subject: dto.betreff,
         text: dto.text,
-        attachments: [{ filename: dateiname, content: buffer, contentType: 'application/pdf' }],
+        attachments: anhaenge,
       });
       messageId = ergebnis.messageId ?? null;
     } catch (error) {
@@ -169,7 +197,7 @@ export class MailService {
         cc: kopie.length > 0 ? kopie.join(', ') : null,
         subject: dto.betreff,
         body: dto.text,
-        attachments: [dateiname],
+        attachments: dateinamen,
         status,
         error: fehler,
         messageId,
@@ -264,6 +292,144 @@ export class MailService {
     ]
       .filter(Boolean)
       .join('\n');
+  }
+
+  /**
+   * Baut die Anhänge: der Beleg selbst und, falls gewählt, weitere.
+   *
+   * Zwei Vorkehrungen, beide aus dem Alltag begründet:
+   *
+   * Doppelte fallen weg. Ist das Prüfprotokoll schon der Hauptbeleg und wird
+   * daneben angehakt, läge es zweimal im Umschlag – der Kunde fragt sich dann,
+   * worin sich die beiden unterscheiden.
+   *
+   * Die Gesamtgröße ist begrenzt. Ein Prüfprotokoll mit Fotos wird schnell
+   * groß, und viele Postfächer weisen alles über 20 MB ab. Diese Grenze zieht
+   * vorher – mit einer Meldung, die sagt, was zu tun ist, statt einer Absage
+   * des Mailservers, die im Versandprotokoll als Fehlschlag steht.
+   */
+  private async anhaengeBauen(dto: SendMailDto) {
+    const gewaehlt = [
+      { art: dto.art, id: dto.id },
+      ...(dto.zusatz ?? []).filter(
+        (beilage) => !(beilage.art === dto.art && beilage.id === dto.id),
+      ),
+    ];
+
+    const anhaenge: { filename: string; content: Buffer; contentType: string }[] = [];
+    let gesamt = 0;
+
+    for (const beilage of gewaehlt) {
+      const { buffer, dateiname } = await this.belegAlsPdf(beilage.art, beilage.id);
+      gesamt += buffer.byteLength;
+
+      if (gesamt > ANHANG_GRENZE_BYTES) {
+        throw new BadRequestException(
+          `Die Anhänge überschreiten zusammen ${Math.round(ANHANG_GRENZE_BYTES / 1024 / 1024)} MB. ` +
+            'Bitte weniger Belege auswählen und den Rest getrennt verschicken.',
+        );
+      }
+
+      anhaenge.push({ filename: dateiname, content: buffer, contentType: 'application/pdf' });
+    }
+
+    return anhaenge;
+  }
+
+  /**
+   * Belege, die zu diesem Vorgang gehören und mitgeschickt werden können.
+   *
+   * Gedacht ist der Fall, der im Betrieb ständig vorkommt: Zur Rechnung über
+   * eine wiederkehrende Prüfung gehört das Prüfprotokoll nach ASR A1.7, und
+   * beides will der Kunde in einem Umschlag haben – die Rechnung zahlt er, das
+   * Protokoll heftet er ab. Es zählt zu den Unterlagen, die er bei einer
+   * Begehung vorlegen muss.
+   *
+   * Vorgeschlagen wird nur, was nachweislich zusammengehört: Serviceberichte
+   * desselben Auftrags und die Prüfungen der darin behandelten Anlagen. Fehlt
+   * der Auftragsbezug, treten die abgeschlossenen Vorgänge des Kunden aus den
+   * letzten Monaten an seine Stelle – zeitlich begrenzt, damit die Liste eine
+   * Auswahl bleibt und keine Chronik.
+   *
+   * Angehakt ist nichts. Was in eine Rechnung an einen Kunden hineingeht,
+   * entscheidet ein Mensch.
+   */
+  private async beilagenVorschlaege(art: MailDocumentType, id: string): Promise<Beilage[]> {
+    if (art !== 'RECHNUNG') return [];
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      select: { customerId: true, orderId: true, date: true },
+    });
+    if (!invoice) return [];
+
+    const seit = new Date(invoice.date);
+    seit.setMonth(seit.getMonth() - BEILAGEN_MONATE);
+
+    const berichte = await prisma.serviceReport.findMany({
+      where: {
+        status: ServiceReportStatus.ABGESCHLOSSEN,
+        ...(invoice.orderId
+          ? { orderId: invoice.orderId }
+          : {
+              date: { gte: seit },
+              OR: [
+                { order: { customerId: invoice.customerId } },
+                { door: { customerId: invoice.customerId } },
+              ],
+            }),
+      },
+      select: {
+        id: true,
+        reportNumber: true,
+        date: true,
+        doorId: true,
+        door: { select: { doorNumber: true, location: true } },
+      },
+      orderBy: { date: 'desc' },
+      take: BEILAGEN_HOECHSTZAHL,
+    });
+
+    // Die Prüfungen der Anlagen, um die es in diesen Berichten geht – und,
+    // falls es keine Berichte gibt, die des Kunden im selben Zeitraum.
+    const anlagen = berichte
+      .map((bericht) => bericht.doorId)
+      .filter((wert): wert is string => Boolean(wert));
+
+    const pruefungen = await prisma.inspection.findMany({
+      where: {
+        completedAt: { not: null },
+        date: { gte: seit },
+        ...(anlagen.length > 0
+          ? { doorId: { in: anlagen } }
+          : { door: { customerId: invoice.customerId } }),
+      },
+      select: {
+        id: true,
+        inspectionNumber: true,
+        date: true,
+        door: { select: { doorNumber: true, location: true } },
+      },
+      orderBy: { date: 'desc' },
+      take: BEILAGEN_HOECHSTZAHL,
+    });
+
+    return [
+      ...pruefungen.map((pruefung) => ({
+        art: 'PRUEFPROTOKOLL' as MailDocumentType,
+        id: pruefung.id,
+        bezeichnung: `Prüfprotokoll ${pruefung.inspectionNumber}`,
+        zusatz: `${pruefung.door.doorNumber} · ${pruefung.door.location}`,
+        datum: pruefung.date.toISOString(),
+      })),
+      ...berichte.map((bericht) => ({
+        art: 'SERVICEBERICHT' as MailDocumentType,
+        id: bericht.id,
+        bezeichnung: `Servicebericht ${bericht.reportNumber}`,
+        zusatz: bericht.door ? `${bericht.door.doorNumber} · ${bericht.door.location}` : '',
+        datum: bericht.date.toISOString(),
+      })),
+    ];
   }
 
   private belegAlsPdf(art: MailDocumentType, id: string) {

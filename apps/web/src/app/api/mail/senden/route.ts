@@ -10,6 +10,13 @@ export const dynamic = 'force-dynamic';
 
 export const POST = geschuetzt(async (anfrage, { benutzer }) => {
   const eingabe = await rumpf(anfrage, sendMailSchema);
-  pruefeVersandrecht(eingabe.art, benutzer.role);
+
+  // Jede Beilage wird einzeln geprüft, nicht nur der Hauptbeleg. Sonst wäre der
+  // Umschlag ein Schlupfloch: Ein Monteur darf den Servicebericht verschicken,
+  // die Rechnung nicht – er könnte sie sonst einfach als Anhang mitgeben.
+  for (const beleg of [eingabe, ...(eingabe.zusatz ?? [])]) {
+    pruefeVersandrecht(beleg.art, benutzer.role);
+  }
+
   return json(await mailService.senden(eingabe));
 });
