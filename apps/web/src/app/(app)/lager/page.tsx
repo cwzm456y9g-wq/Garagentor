@@ -2,6 +2,7 @@
 
 import { formatCurrency, formatNumber, formatPercent } from '@garagentor/shared';
 import { useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, Card, PageHeader, StatCard } from '@/components/ui';
 import { useApi, useList } from '@/lib/hooks';
@@ -91,6 +92,7 @@ export default function InventoryPage() {
             <th className="text-right">EK</th>
             <th className="text-right">VK</th>
             <th className="text-right">Rohertrag</th>
+            <th />
           </>
         }
         renderRow={(article) => (
@@ -134,6 +136,23 @@ export default function InventoryPage() {
             </td>
             <td className="tabular whitespace-nowrap text-right text-slate-600">
               {formatPercent(article.margin ?? 0)}
+            </td>
+
+            <td className="whitespace-nowrap text-right">
+              <EntfernenKnopf
+                klein
+                pfad={`/articles/${article.id}`}
+                titel={`Artikel ${article.articleNumber} entfernen`}
+                beschriftung="Entfernen"
+                beschreibung={
+                  <>
+                    Der Artikel wird aus dem Stamm entfernt. Steht er auf einem Beleg oder gibt es
+                    Lagerbewegungen dazu, lehnt der Server das ab – dann bleibt nur, ihn
+                    stillzulegen, damit die alten Belege weiter lesbar sind.
+                  </>
+                }
+                onEntfernt={() => state.reload()}
+              />
             </td>
           </>
         )}

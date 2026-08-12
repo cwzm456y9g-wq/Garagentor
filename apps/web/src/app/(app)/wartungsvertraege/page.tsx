@@ -9,7 +9,8 @@ import {
 import Link from 'next/link';
 import { useState } from 'react';
 import { ListPage } from '@/components/list-page';
-import { Badge, Button, PageHeader, Select } from '@/components/ui';
+import { EntfernenKnopf } from '@/components/entfernen';
+import { Badge, Button, LinkButton, PageHeader, Select } from '@/components/ui';
 import { api } from '@/lib/api-client';
 import { useAction, useList } from '@/lib/hooks';
 import { contractStatus } from '@/lib/status';
@@ -34,6 +35,7 @@ export default function ContractsPage() {
       <PageHeader
         title="Wartungsverträge"
         subtitle="Intervalle, Fälligkeiten und abgedeckte Toranlagen"
+        actions={<LinkButton href="/wartungsvertraege/neu">Vertrag anlegen</LinkButton>}
       />
 
       <ListPage
@@ -41,6 +43,7 @@ export default function ContractsPage() {
         searchPlaceholder="Vertragsnummer oder Bezeichnung …"
         rowKey={(contract) => contract.id}
         emptyTitle="Keine Wartungsverträge"
+        emptyDescription="Ein Vertrag bündelt Intervall, Pauschale und die abgedeckten Toranlagen."
         filters={
           <>
             <Select
@@ -87,8 +90,13 @@ export default function ContractsPage() {
 
           return (
             <>
-              <td className="tabular whitespace-nowrap font-medium text-slate-900">
-                {contract.contractNumber}
+              <td className="tabular whitespace-nowrap">
+                <Link
+                  href={`/wartungsvertraege/${contract.id}/bearbeiten`}
+                  className="text-verweis font-medium hover:underline"
+                >
+                  {contract.contractNumber}
+                </Link>
               </td>
               <td className="text-slate-700">
                 {contract.customer ? (
@@ -125,7 +133,7 @@ export default function ContractsPage() {
               <td>
                 <Badge tone={state2.tone}>{state2.label}</Badge>
               </td>
-              <td className="text-right">
+              <td className="whitespace-nowrap text-right">
                 {contract.status === 'AKTIV' && (
                   <Button
                     size="sm"
@@ -137,6 +145,35 @@ export default function ContractsPage() {
                     Einsatz vermerken
                   </Button>
                 )}
+                <EntfernenKnopf
+                  klein
+                  pfad={`/maintenance-contracts/${contract.id}`}
+                  titel={
+                    contract.lastServiceDate
+                      ? `Wartungsvertrag ${contract.contractNumber} kündigen`
+                      : `Wartungsvertrag ${contract.contractNumber} löschen`
+                  }
+                  beschriftung={contract.lastServiceDate ? 'Kündigen' : 'Löschen'}
+                  knopf={contract.lastServiceDate ? 'Kündigen' : 'Endgültig löschen'}
+                  beschreibung={
+                    contract.lastServiceDate ? (
+                      <>
+                        Unter diesem Vertrag wurde bereits gewartet – zuletzt am{' '}
+                        {formatDate(contract.lastServiceDate)}. Er wird deshalb nicht gelöscht,
+                        sondern auf „gekündigt“ gesetzt: Der nächste Termin entfällt, die Historie
+                        bleibt lesbar. Die {contract.doors?.length ?? 0} zugeordneten Anlagen
+                        behalten ihre Prüffristen.
+                      </>
+                    ) : (
+                      <>
+                        Unter diesem Vertrag wurde noch nicht gewartet – er wird vollständig
+                        gelöscht. Die Zuordnung zu den {contract.doors?.length ?? 0} Toranlagen
+                        entfällt damit; die Anlagen selbst bleiben mit ihren Prüffristen erhalten.
+                      </>
+                    )
+                  }
+                  onEntfernt={() => state.reload()}
+                />
               </td>
             </>
           );

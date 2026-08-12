@@ -7,6 +7,7 @@ import {
   purchaseOrderStatusLabels,
 } from '@garagentor/shared';
 import { useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, Card, EmptyState, LoadingState, PageHeader, Select, Table } from '@/components/ui';
 import { useApi, useList } from '@/lib/hooks';
@@ -99,6 +100,7 @@ export default function PurchaseOrdersPage() {
             <th className="text-right">Positionen</th>
             <th>Status</th>
             <th className="text-right">Netto</th>
+            <th />
           </>
         }
         renderRow={(order) => {
@@ -119,6 +121,22 @@ export default function PurchaseOrdersPage() {
               </td>
               <td className="tabular whitespace-nowrap text-right font-medium">
                 {formatCurrency(order.netTotal)}
+              </td>
+
+              <td className="whitespace-nowrap text-right">
+                <EntfernenKnopf
+                  klein
+                  pfad={`/purchase-orders/${order.id}`}
+                  titel={`Bestellung ${order.orderNumber} entfernen`}
+                  beschriftung="Entfernen"
+                  beschreibung={
+                    <>
+                      Die Bestellung wird entfernt. Bereits gebuchte Wareneingänge bleiben im Lager
+                      – der Bestand ist ja tatsächlich da.
+                    </>
+                  }
+                  onEntfernt={() => state.reload()}
+                />
               </td>
             </>
           );

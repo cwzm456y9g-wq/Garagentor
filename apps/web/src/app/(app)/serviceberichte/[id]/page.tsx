@@ -10,10 +10,12 @@ import {
   type Paginated,
 } from '@garagentor/shared';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { use, useState } from 'react';
 import { PhotoGallery } from '@/components/photo-gallery';
 import { SignaturePad } from '@/components/signature-pad';
 import { MailButton } from '@/components/mail-dialog';
+import { EntfernenKnopf } from '@/components/entfernen';
 import {
   Badge,
   Button,
@@ -38,6 +40,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function ServiceReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { data, loading, error, reload } = useApi<ServiceReport>(`/service-reports/${id}`);
   const nummer = data?.reportNumber ?? id;
   const fotos = useApi<Paginated<DocumentEntry>>('/documents', {
@@ -84,6 +87,19 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
               Als PDF
             </Button>
             <MailButton art="SERVICEBERICHT" id={id} onSent={reload} />
+            <EntfernenKnopf
+              pfad={`/service-reports/${id}`}
+              titel={`Servicebericht ${data.reportNumber} entfernen`}
+              beschreibung={
+                <>
+                  Der Bericht wird mitsamt dem erfassten Material entfernt. Bereits ausgebuchtes
+                  Lagermaterial kommt dadurch nicht zurück – die Bestandsbewegung bleibt bestehen,
+                  weil sie tatsächlich stattgefunden hat. Ist der Bericht schon beim Kunden, sollte
+                  er dort auch nachvollziehbar bleiben.
+                </>
+              }
+              onEntfernt={() => router.push('/serviceberichte')}
+            />
           </>
         }
         subtitle={

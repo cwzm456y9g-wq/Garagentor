@@ -20,6 +20,7 @@ import {
   LoadingState,
   PageHeader,
 } from '@/components/ui';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { useApi } from '@/lib/hooks';
 import { appointmentStatus } from '@/lib/status';
 import type { Appointment } from '@/lib/types';
@@ -130,6 +131,20 @@ export default function AppointmentsPage() {
                           </Badge>
                         ))}
                         <Badge tone={state.tone}>{state.label}</Badge>
+                        <EntfernenKnopf
+                          klein
+                          pfad={`/appointments/${appointment.id}`}
+                          titel={`Termin „${appointment.title}“ entfernen`}
+                          beschriftung="Entfernen"
+                          beschreibung={
+                            <>
+                              Der Termin wird entfernt und verschwindet bei den eingeteilten
+                              Mitarbeitern aus „Mein Tag“. Serviceberichte oder Prüfungen, die
+                              daraus entstanden sind, bleiben bestehen.
+                            </>
+                          }
+                          onEntfernt={reload}
+                        />
                       </span>
                     </li>
                   );

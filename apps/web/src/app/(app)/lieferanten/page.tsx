@@ -1,6 +1,7 @@
 'use client';
 
 import { formatAddress, formatPercent } from '@garagentor/shared';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { PageHeader } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -27,6 +28,7 @@ export default function SuppliersPage() {
             <th className="text-right">Zahlungsziel</th>
             <th className="text-right">Skonto</th>
             <th className="text-right">Artikel</th>
+            <th />
           </>
         }
         renderRow={(supplier) => (
@@ -56,6 +58,22 @@ export default function SuppliersPage() {
               {formatPercent(supplier.discountPercent)}
             </td>
             <td className="tabular text-right">{supplier._count?.articles ?? 0}</td>
+
+            <td className="whitespace-nowrap text-right">
+              <EntfernenKnopf
+                klein
+                pfad={`/suppliers/${supplier.id}`}
+                titel={`Lieferant ${supplier.supplierNumber} entfernen`}
+                beschriftung="Entfernen"
+                beschreibung={
+                  <>
+                    Der Lieferant wird entfernt. Hängen Bestellungen oder Artikel daran, lehnt der
+                    Server das ab – die Zuordnung wäre sonst verloren.
+                  </>
+                }
+                onEntfernt={() => state.reload()}
+              />
+            </td>
           </>
         )}
       />

@@ -9,6 +9,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -84,10 +85,11 @@ export default function OrdersPage() {
             <th>Termin</th>
             <th>Status</th>
             <th className="text-right">Netto</th>
+            <th />
           </>
         }
         renderRow={(order) => {
-          const state = orderStatus(order.status);
+          const anzeige = orderStatus(order.status);
           return (
             <>
               <td className="tabular whitespace-nowrap">
@@ -112,10 +114,27 @@ export default function OrdersPage() {
                 {formatDate(order.plannedStart)}
               </td>
               <td>
-                <Badge tone={state.tone}>{state.label}</Badge>
+                <Badge tone={anzeige.tone}>{anzeige.label}</Badge>
               </td>
               <td className="tabular whitespace-nowrap text-right font-medium">
                 {formatCurrency(order.netTotal)}
+              </td>
+
+              <td className="whitespace-nowrap text-right">
+                <EntfernenKnopf
+                  klein
+                  pfad={`/orders/${order.id}`}
+                  titel={`Auftrag ${order.orderNumber} entfernen`}
+                  beschriftung="Entfernen"
+                  beschreibung={
+                    <>
+                      Der Auftrag wird entfernt. Hängt eine Rechnung daran, lehnt der Server das ab
+                      – ein gestellter Beleg braucht seinen Vorgang. Das Angebot dahinter bleibt
+                      bestehen.
+                    </>
+                  }
+                  onEntfernt={() => state.reload()}
+                />
               </td>
             </>
           );

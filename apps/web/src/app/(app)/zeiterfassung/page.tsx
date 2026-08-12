@@ -10,6 +10,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import {
   Badge,
   Button,
@@ -215,6 +216,7 @@ export default function TimeTrackingPage() {
                 <th>Art</th>
                 <th>Zuordnung</th>
                 <th>Tätigkeit</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -252,6 +254,22 @@ export default function TimeTrackingPage() {
                     )}
                   </td>
                   <td className="max-w-xs truncate text-slate-600">{entry.description ?? '–'}</td>
+                  <td className="whitespace-nowrap text-right">
+                    <EntfernenKnopf
+                      klein
+                      pfad={`/time-entries/${entry.id}`}
+                      titel="Zeiteintrag entfernen"
+                      beschriftung="Entfernen"
+                      beschreibung={
+                        <>
+                          Der Eintrag über {formatHours(entry.hours)} wird entfernt. Ist er schon
+                          abgerechnet, fehlt er anschließend in der Nachkalkulation – der Beleg
+                          selbst bleibt davon unberührt.
+                        </>
+                      }
+                      onEntfernt={() => list.reload()}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

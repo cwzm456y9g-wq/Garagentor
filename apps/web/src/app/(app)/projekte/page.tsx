@@ -8,6 +8,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -52,6 +53,7 @@ export default function ProjectsPage() {
             <th className="text-right">Aufträge</th>
             <th className="text-right">Budget</th>
             <th>Status</th>
+            <th />
           </>
         }
         renderRow={(project) => {
@@ -82,6 +84,22 @@ export default function ProjectsPage() {
               </td>
               <td>
                 <Badge tone={state2.tone}>{state2.label}</Badge>
+              </td>
+
+              <td className="whitespace-nowrap text-right">
+                <EntfernenKnopf
+                  klein
+                  pfad={`/projects/${project.id}`}
+                  titel={`Projekt ${project.projectNumber} entfernen`}
+                  beschriftung="Entfernen"
+                  beschreibung={
+                    <>
+                      Das Projekt wird mitsamt seinen Aufgaben entfernt. Zugeordnete Aufträge
+                      bleiben bestehen, sie verlieren nur die Zuordnung.
+                    </>
+                  }
+                  onEntfernt={() => state.reload()}
+                />
               </td>
             </>
           );

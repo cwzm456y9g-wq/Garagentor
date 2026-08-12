@@ -10,6 +10,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { use } from 'react';
 import {
   Badge,
@@ -61,6 +62,18 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
             <LinkButton href={`/tore/${data.id}/bearbeiten`} variant="secondary">
               Bearbeiten
             </LinkButton>
+            <EntfernenKnopf
+              pfad={`/doors/${data.id}`}
+              titel={`Toranlage ${data.doorNumber} entfernen`}
+              beschreibung={
+                <>
+                  Die Anlage wird mitsamt ihren Prüfprotokollen, Mängeln und Serviceberichten
+                  entfernt. Hängt sie an einem Wartungsvertrag, fällt sie dort heraus. Rechnungen
+                  bleiben unberührt – die stehen für sich.
+                </>
+              }
+              onEntfernt={() => router.push('/tore')}
+            />
             {data.operationMode === 'KRAFTBETAETIGT' &&
               (openInspection ? (
                 <Button onClick={() => router.push(`/pruefungen/${openInspection.id}`)}>
