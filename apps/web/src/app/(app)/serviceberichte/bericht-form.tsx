@@ -15,7 +15,7 @@ interface FormValues {
   technicianId: string;
   date: string;
   workHours: string;
-  travelHours: string;
+  travelFlatRate: string;
   travelKm: string;
   faultDescription: string;
   workPerformed: string;
@@ -58,7 +58,7 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
     technicianId: '',
     date: heute(),
     workHours: '',
-    travelHours: '',
+    travelFlatRate: '',
     travelKm: '',
     faultDescription: '',
     workPerformed: '',
@@ -124,7 +124,7 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
       technicianId: text(values.technicianId),
       date: text(values.date),
       workHours: zahl(values.workHours),
-      travelHours: zahl(values.travelHours),
+      travelFlatRate: zahl(values.travelFlatRate),
       travelKm: zahl(values.travelKm),
       faultDescription: text(values.faultDescription),
       workPerformed: values.workPerformed,
@@ -220,7 +220,7 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
         </div>
       </Card>
 
-      <Card title="Zeiten">
+      <Card title="Zeit und Anfahrt">
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Arbeitszeit in Stunden" htmlFor="workHours">
             <Input
@@ -233,15 +233,18 @@ export function ServiceReportForm({ tor }: { tor?: string }) {
               onChange={(e) => set('workHours', e.target.value)}
             />
           </Field>
-          <Field label="Fahrtzeit in Stunden" htmlFor="travelHours">
+          <Field
+            label="Fahrtkostenpauschale in €"
+            htmlFor="travelFlatRate"
+            hint="Fester Betrag für die Anfahrt, unabhängig von der Dauer."
+          >
             <Input
-              id="travelHours"
+              id="travelFlatRate"
               type="number"
               min={0}
-              max={24}
-              step="0.25"
-              value={values.travelHours}
-              onChange={(e) => set('travelHours', e.target.value)}
+              step="0.01"
+              value={values.travelFlatRate}
+              onChange={(e) => set('travelFlatRate', e.target.value)}
             />
           </Field>
           <Field label="Gefahrene Kilometer" htmlFor="travelKm">

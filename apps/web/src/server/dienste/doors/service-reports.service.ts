@@ -98,7 +98,7 @@ export class ServiceReportsService {
           arrivalTime: dto.arrivalTime ? new Date(dto.arrivalTime) : null,
           departureTime: dto.departureTime ? new Date(dto.departureTime) : null,
           workHours: this.workHours(dto),
-          travelHours: dto.travelHours ?? 0,
+          travelFlatRate: dto.travelFlatRate ?? 0,
           travelKm: dto.travelKm ?? 0,
           faultDescription: dto.faultDescription ?? null,
           workPerformed: dto.workPerformed,
@@ -140,7 +140,7 @@ export class ServiceReportsService {
           ...(dto.workHours === undefined && dto.arrivalTime === undefined
             ? {}
             : { workHours: this.workHours({ ...report, ...dto } as CreateServiceReportDto) }),
-          ...(dto.travelHours === undefined ? {} : { travelHours: dto.travelHours }),
+          ...(dto.travelFlatRate === undefined ? {} : { travelFlatRate: dto.travelFlatRate }),
           ...(dto.travelKm === undefined ? {} : { travelKm: dto.travelKm }),
           ...(dto.faultDescription === undefined ? {} : { faultDescription: dto.faultDescription }),
           ...(dto.workPerformed === undefined ? {} : { workPerformed: dto.workPerformed }),

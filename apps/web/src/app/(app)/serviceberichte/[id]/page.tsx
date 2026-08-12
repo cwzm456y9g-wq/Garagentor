@@ -255,7 +255,7 @@ export default function ServiceReportDetailPage({ params }: { params: Promise<{ 
               <Row label="Ankunft" value={formatTime(data.arrivalTime)} />
               <Row label="Abfahrt" value={formatTime(data.departureTime)} />
               <Row label="Arbeitszeit" value={formatHours(data.workHours)} />
-              <Row label="Fahrtzeit" value={formatHours(data.travelHours)} />
+              <Row label="Fahrtkostenpauschale" value={formatCurrency(data.travelFlatRate)} />
               <Row label="Gefahrene Strecke" value={`${formatNumber(data.travelKm, 0)} km`} />
             </dl>
           </Card>

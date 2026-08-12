@@ -392,7 +392,7 @@ export interface ServiceReport {
   arrivalTime: string | null;
   departureTime: string | null;
   workHours: number;
-  travelHours: number;
+  travelFlatRate: number;
   travelKm: number;
   faultDescription: string | null;
   workPerformed: string;

@@ -44,11 +44,18 @@ const berichtsFelder = {
     .max(24)
     .refine(nachkomma(2), { message: 'Höchstens 2 Nachkommastellen.' })
     .optional(),
-  /** Fahrtzeit in Stunden. */
-  travelHours: z
+  /**
+   * Fahrtkostenpauschale in Euro.
+   *
+   * Kein Stundenwert: Die Anfahrt wird als fester Betrag berechnet, unabhängig
+   * davon, wie lange sie gedauert hat. Die gefahrenen Kilometer bleiben
+   * daneben stehen – sie dienen der eigenen Nachkalkulation, nicht der
+   * Rechnung.
+   */
+  travelFlatRate: z
     .number()
     .min(0)
-    .max(24)
+    .max(9_999_999)
     .refine(nachkomma(2), { message: 'Höchstens 2 Nachkommastellen.' })
     .optional(),
   /** Gefahrene Kilometer. */

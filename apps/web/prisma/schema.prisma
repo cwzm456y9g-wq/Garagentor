@@ -955,7 +955,9 @@ model ServiceReport {
   departureTime       DateTime?
   /// Arbeitszeit in Stunden.
   workHours           Decimal             @default(0) @db.Decimal(6, 2)
-  travelHours         Decimal             @default(0) @db.Decimal(6, 2)
+  /// Fahrtkostenpauschale in Euro. Ersetzt die frühere Fahrtzeit in Stunden:
+  /// Abgerechnet wird die Anfahrt als fester Betrag, nicht nach Aufwand.
+  travelFlatRate      Decimal             @default(0) @db.Decimal(10, 2)
   travelKm            Decimal             @default(0) @db.Decimal(8, 2)
   faultDescription    String?
   workPerformed       String

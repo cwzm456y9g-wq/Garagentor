@@ -44,7 +44,7 @@ export interface BerichtDaten {
   arrivalTime: Date | string | null;
   departureTime: Date | string | null;
   workHours: number;
-  travelHours: number;
+  travelFlatRate: number;
   travelKm: number;
   faultDescription: string | null;
   workPerformed: string;
@@ -167,7 +167,7 @@ export function Servicebericht({
             ['Ankunft', uhrzeit(daten.arrivalTime)],
             ['Abfahrt', uhrzeit(daten.departureTime)],
             ['Arbeitszeit', stunden(daten.workHours)],
-            ['Fahrtzeit', stunden(daten.travelHours)],
+            ['Fahrtkostenpauschale', `${euro.format(daten.travelFlatRate)} €`],
             ['Strecke', `${zahlformat.format(daten.travelKm)} km`],
             ...(daten.anlage
               ? ([['Anlage', `${daten.anlage.doorNumber}, ${daten.anlage.location}`]] as Array<

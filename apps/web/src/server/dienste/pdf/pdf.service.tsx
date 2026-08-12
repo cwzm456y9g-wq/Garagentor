@@ -388,7 +388,7 @@ export class PdfService {
           arrivalTime: report.arrivalTime,
           departureTime: report.departureTime,
           workHours: zahl(report.workHours),
-          travelHours: zahl(report.travelHours),
+          travelFlatRate: zahl(report.travelFlatRate),
           travelKm: zahl(report.travelKm),
           faultDescription: report.faultDescription,
           workPerformed: report.workPerformed,

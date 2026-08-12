@@ -870,7 +870,7 @@ async function main(): Promise<void> {
       arrivalTime: atTime(daysFromNow(-46), 8, 0),
       departureTime: atTime(daysFromNow(-46), 11, 45),
       workHours: 3,
-      travelHours: 0.75,
+      travelFlatRate: 45,
       travelKm: 45,
       faultDescription:
         'Rollgitter blockiert beim Öffnen auf halber Höhe, laute Laufgeräusche in der Führung.',
@@ -899,7 +899,7 @@ async function main(): Promise<void> {
       arrivalTime: atTime(daysFromNow(-347), 7, 30),
       departureTime: atTime(daysFromNow(-347), 10, 0),
       workHours: 2.5,
-      travelHours: 0.5,
+      travelFlatRate: 35,
       travelKm: 18,
       faultDescription: null,
       workPerformed:
@@ -920,7 +920,7 @@ async function main(): Promise<void> {
       arrivalTime: atTime(daysFromNow(-3), 13, 15),
       departureTime: atTime(daysFromNow(-3), 15, 0),
       workHours: 1.5,
-      travelHours: 0.5,
+      travelFlatRate: 35,
       travelKm: 22,
       faultDescription:
         'Tor fährt nach Not-Aus nicht mehr selbsttätig in die obere Endlage, ' +
