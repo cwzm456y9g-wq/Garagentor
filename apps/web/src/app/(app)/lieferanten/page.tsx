@@ -3,7 +3,7 @@
 import { formatAddress, formatPercent } from '@garagentor/shared';
 import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
-import { PageHeader } from '@/components/ui';
+import { LinkButton, PageHeader } from '@/components/ui';
 import { useList } from '@/lib/hooks';
 import type { Supplier } from '@/lib/types';
 
@@ -12,7 +12,11 @@ export default function SuppliersPage() {
 
   return (
     <>
-      <PageHeader title="Lieferanten" subtitle="Bezugsquellen mit Konditionen" />
+      <PageHeader
+        title="Lieferanten"
+        subtitle="Bezugsquellen mit Konditionen"
+        actions={<LinkButton href="/lieferanten/neu">Lieferant anlegen</LinkButton>}
+      />
 
       <ListPage
         state={state}
@@ -60,6 +64,9 @@ export default function SuppliersPage() {
             <td className="tabular text-right">{supplier._count?.articles ?? 0}</td>
 
             <td className="whitespace-nowrap text-right">
+              <LinkButton href={`/lieferanten/${supplier.id}/bearbeiten`} variant="ghost" size="sm">
+                Bearbeiten
+              </LinkButton>
               <EntfernenKnopf
                 klein
                 pfad={`/suppliers/${supplier.id}`}

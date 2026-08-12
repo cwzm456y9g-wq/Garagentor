@@ -126,7 +126,14 @@ export default function InvoicesPage() {
       <PageHeader
         title="Rechnungen"
         subtitle="Ausgangsrechnungen, Zahlungen und offene Posten"
-        actions={<LinkButton href="/auftraege">Aus Auftrag abrechnen</LinkButton>}
+        actions={
+          <>
+            <LinkButton href="/auftraege" variant="secondary">
+              Aus Auftrag abrechnen
+            </LinkButton>
+            <LinkButton href="/rechnungen/neu">Rechnung erstellen</LinkButton>
+          </>
+        }
       />
       <Suspense fallback={<LoadingState />}>
         <InvoiceList />

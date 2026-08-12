@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
-import { Badge, PageHeader, Select } from '@/components/ui';
+import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
 import { orderStatus } from '@/lib/status';
 import type { Order } from '@/lib/types';
@@ -29,7 +29,11 @@ export default function OrdersPage() {
 
   return (
     <>
-      <PageHeader title="Aufträge" subtitle="Montage, Reparatur, Wartung und Prüfung" />
+      <PageHeader
+        title="Aufträge"
+        subtitle="Montage, Reparatur, Wartung und Prüfung"
+        actions={<LinkButton href="/auftraege/neu">Auftrag erstellen</LinkButton>}
+      />
 
       <ListPage
         state={state}

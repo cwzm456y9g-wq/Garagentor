@@ -479,6 +479,7 @@ export interface Supplier {
   zip: string | null;
   city: string | null;
   customerNumber: string | null;
+  vatId: string | null;
   paymentTermsDays: number;
   discountPercent: number;
   notes: string | null;

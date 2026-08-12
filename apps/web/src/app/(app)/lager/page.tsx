@@ -4,7 +4,7 @@ import { formatCurrency, formatNumber, formatPercent } from '@garagentor/shared'
 import { useState } from 'react';
 import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
-import { Badge, Card, PageHeader, StatCard } from '@/components/ui';
+import { Badge, Card, LinkButton, PageHeader, StatCard } from '@/components/ui';
 import { useApi, useList } from '@/lib/hooks';
 import type { Article, ArticleStock } from '@/lib/types';
 
@@ -22,7 +22,11 @@ export default function InventoryPage() {
 
   return (
     <>
-      <PageHeader title="Lager" subtitle="Artikelstamm, Bestände und Meldebestand" />
+      <PageHeader
+        title="Lager"
+        subtitle="Artikelstamm, Bestände und Meldebestand"
+        actions={<LinkButton href="/lager/neu">Artikel anlegen</LinkButton>}
+      />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard
@@ -139,6 +143,9 @@ export default function InventoryPage() {
             </td>
 
             <td className="whitespace-nowrap text-right">
+              <LinkButton href={`/lager/${article.id}/bearbeiten`} variant="ghost" size="sm">
+                Bearbeiten
+              </LinkButton>
               <EntfernenKnopf
                 klein
                 pfad={`/articles/${article.id}`}

@@ -131,6 +131,13 @@ export default function AppointmentsPage() {
                           </Badge>
                         ))}
                         <Badge tone={state.tone}>{state.label}</Badge>
+                        <LinkButton
+                          href={`/termine/${appointment.id}/bearbeiten`}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          Bearbeiten
+                        </LinkButton>
                         <EntfernenKnopf
                           klein
                           pfad={`/appointments/${appointment.id}`}
