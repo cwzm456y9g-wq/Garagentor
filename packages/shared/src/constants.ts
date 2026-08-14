@@ -356,6 +356,7 @@ export const MAIL_DOCUMENT_TYPES = [
   'RECHNUNG',
   'MAHNUNG',
   'SERVICEBERICHT',
+  'PRUEFBESCHEINIGUNG',
   'PRUEFPROTOKOLL',
 ] as const;
 
@@ -410,6 +411,18 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<MailDocumentType, { betreff: string;
       '{anrede}\n\n' +
       'anbei erhalten Sie den Servicebericht {nummer} zu unserem Einsatz am {datum} ' +
       'an der Anlage {anlage}.',
+  },
+  PRUEFBESCHEINIGUNG: {
+    betreff: 'Prüfbescheinigung {nummer} – {anlage}',
+    text:
+      '{anrede}\n\n' +
+      'anbei erhalten Sie die Bescheinigung über die Prüfung vom {datum} an der Anlage ' +
+      '{anlage}.\n\n' +
+      'Die nächste Prüfung ist bis zum {faellig} fällig. Bitte bewahren Sie die ' +
+      'Bescheinigung bis dahin auf; sie ist auf Verlangen der Aufsichtsbehörde ' +
+      'vorzulegen.\n\n' +
+      'Das ausführliche Prüfprotokoll mit allen Einzelprüfpunkten liegt bei uns vor und ' +
+      'wird Ihnen auf Wunsch ausgehändigt.',
   },
   PRUEFPROTOKOLL: {
     betreff: 'Prüfprotokoll {nummer} – {anlage}',

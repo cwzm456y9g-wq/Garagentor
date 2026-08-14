@@ -1,5 +1,5 @@
 import { prisma } from '@/server/prisma';
-import { pdf } from '../pdf/pdf.service';
+import { BESCHEINIGUNG_ZUSATZ, pdf } from '../pdf/pdf.service';
 import {
   BadRequestException,
   Logger,
@@ -16,6 +16,7 @@ import { konfiguration, type Konfiguration } from '@/server/konfiguration';
 
 import type { MailLogQueryDto, SendMailDto } from './dto/mail.dto';
 import {
+  absenderZeile,
   empfaengerListe,
   istEmpfaengerGueltig,
   mitSignatur,
@@ -39,6 +40,20 @@ const BEILAGEN_MONATE = 6;
 
 /** Damit die Auswahl eine Auswahl bleibt und keine Chronik. */
 const BEILAGEN_HOECHSTZAHL = 10;
+
+/**
+ * Wie der Hauptanhang heißen wird.
+ *
+ * Die Vorschau nennt den Namen, bevor das PDF entsteht – ein Dokument zu
+ * erzeugen, nur um seinen Dateinamen anzuzeigen, wäre Aufwand ohne Nutzen. Der
+ * Zusatz kommt deshalb aus dem PDF-Dienst und nicht aus einer zweiten
+ * Vermutung.
+ */
+function anhangName(art: MailDocumentType, reference: string): string {
+  return art === 'PRUEFBESCHEINIGUNG'
+    ? `${reference}${BESCHEINIGUNG_ZUSATZ}.pdf`
+    : `${reference}.pdf`;
+}
 
 /** Ein Beleg, der zum selben Vorgang gehört und mitgeschickt werden kann. */
 export interface Beilage {
@@ -124,7 +139,7 @@ export class MailService {
         setzePlatzhalter(vorlage.text, beleg.platzhalter),
         einstellungen.signatur ?? (await this.signaturAusFirma()),
       ),
-      anhang: `${beleg.reference}.pdf`,
+      anhang: anhangName(art, beleg.reference),
       /** Fehlt beim Kunden die Adresse, muss sie von Hand ergänzt werden. */
       empfaengerFehlt: !beleg.empfaenger,
       /** Belege, die zum selben Vorgang gehören und mitgeschickt werden können. */
@@ -168,9 +183,7 @@ export class MailService {
 
     try {
       const ergebnis = await this.transport().sendMail({
-        from: einstellungen.absender
-          ? `${einstellungen.absender} <${mail.from}>`
-          : (mail.from ?? undefined),
+        from: absenderZeile(einstellungen.absender, mail.from),
         to: empfaenger,
         ...(kopie.length > 0 ? { cc: kopie } : {}),
         ...(mail.bcc ? { bcc: mail.bcc } : {}),
@@ -340,9 +353,9 @@ export class MailService {
    * Belege, die zu diesem Vorgang gehören und mitgeschickt werden können.
    *
    * Gedacht ist der Fall, der im Betrieb ständig vorkommt: Zur Rechnung über
-   * eine wiederkehrende Prüfung gehört das Prüfprotokoll nach ASR A1.7, und
-   * beides will der Kunde in einem Umschlag haben – die Rechnung zahlt er, das
-   * Protokoll heftet er ab. Es zählt zu den Unterlagen, die er bei einer
+   * eine wiederkehrende Prüfung gehört der Nachweis nach ASR A1.7, und beides
+   * will der Kunde in einem Umschlag haben – die Rechnung zahlt er, die
+   * Bescheinigung heftet er ab. Sie zählt zu den Unterlagen, die er bei einer
    * Begehung vorlegen muss.
    *
    * Vorgeschlagen wird nur, was nachweislich zusammengehört: Serviceberichte
@@ -415,10 +428,14 @@ export class MailService {
     });
 
     return [
+      // Vorgeschlagen wird die Bescheinigung, nicht das Protokoll: Zur Rechnung
+      // gehört der Nachweis, dass geprüft wurde und mit welchem Ergebnis. Das
+      // vollständige Protokoll geht nur hinaus, wenn der Kunde es verlangt –
+      // dann von der Prüfung aus, mit einer eigenen Entscheidung dafür.
       ...pruefungen.map((pruefung) => ({
-        art: 'PRUEFPROTOKOLL' as MailDocumentType,
+        art: 'PRUEFBESCHEINIGUNG' as MailDocumentType,
         id: pruefung.id,
-        bezeichnung: `Prüfprotokoll ${pruefung.inspectionNumber}`,
+        bezeichnung: `Prüfbescheinigung ${pruefung.inspectionNumber}`,
         zusatz: `${pruefung.door.doorNumber} · ${pruefung.door.location}`,
         datum: pruefung.date.toISOString(),
       })),
@@ -442,6 +459,8 @@ export class MailService {
         return pdf.mahnung(id);
       case 'SERVICEBERICHT':
         return pdf.servicebericht(id);
+      case 'PRUEFBESCHEINIGUNG':
+        return pdf.pruefbescheinigung(id);
       case 'PRUEFPROTOKOLL':
         return pdf.pruefprotokoll(id);
     }
@@ -578,12 +597,16 @@ export class MailService {
         };
       }
 
+      // Bescheinigung und Protokoll betreffen denselben Vorgang: dieselbe
+      // Anschrift, dieselben Platzhalter, derselbe Eintrag im Versandprotokoll.
+      // Sie unterscheiden sich allein im Anhang.
+      case 'PRUEFBESCHEINIGUNG':
       case 'PRUEFPROTOKOLL': {
         const inspection = await prisma.inspection.findUnique({
           where: { id },
           include: { door: { include: { customer: true } } },
         });
-        if (!inspection) throw new NotFoundException('Das Prüfprotokoll wurde nicht gefunden.');
+        if (!inspection) throw new NotFoundException('Die Prüfung wurde nicht gefunden.');
 
         return {
           entityType: EntityType.INSPECTION,

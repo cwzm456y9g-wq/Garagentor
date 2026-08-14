@@ -62,7 +62,8 @@ const MAIL_LABELS: Record<MailDocumentType, string> = {
   RECHNUNG: 'Rechnung',
   MAHNUNG: 'Mahnung',
   SERVICEBERICHT: 'Servicebericht',
-  PRUEFPROTOKOLL: 'Prüfprotokoll',
+  PRUEFBESCHEINIGUNG: 'Prüfbescheinigung',
+  PRUEFPROTOKOLL: 'Prüfprotokoll (auf Wunsch)',
 };
 
 const DUNNING_LABELS: Record<string, string> = {

@@ -1,6 +1,6 @@
 import { prisma } from '@/server/prisma';
 import { documents } from '../documents/documents.service';
-import { NotFoundException } from '@/server/nest-ersatz';
+import { BadRequestException, NotFoundException } from '@/server/nest-ersatz';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { skontoAmount, skontoDeadline } from '@garagentor/shared';
 import { EntityType } from '@prisma/client';
@@ -9,6 +9,7 @@ import { Angebot, anschrift, Rechnung, type BelegOptionen, type BelegPosition } 
 import type { Firma } from './din5008';
 import { renderGiroCode } from './girocode';
 import { Mahnung } from './mahnung';
+import { Pruefbescheinigung } from './bescheinigung';
 import { Pruefprotokoll } from './protokoll';
 import { Servicebericht } from './servicebericht';
 
@@ -17,6 +18,16 @@ export interface BelegDatei {
   buffer: Buffer;
   dateiname: string;
 }
+
+/**
+ * Zusatz im Dateinamen der Prüfbescheinigung.
+ *
+ * Er steht hier und nicht zweimal im Text, weil die Mailvorschau denselben
+ * Namen nennen muss, ohne dafür ein PDF zu erzeugen. Zwei Stellen, die
+ * denselben Namen erraten, gehen irgendwann auseinander – und dann verspricht
+ * die Vorschau einen Anhang, der anders heißt.
+ */
+export const BESCHEINIGUNG_ZUSATZ = '-Bescheinigung';
 
 /** Prisma liefert Decimal; für die Anzeige wird gerechnet. */
 type Dezimal = { toNumber(): number };
@@ -352,6 +363,78 @@ export class PdfService {
     );
 
     return { buffer, dateiname: `${inspection.inspectionNumber}.pdf` };
+  }
+
+  /* Prüfbescheinigung --------------------------------------------------- */
+
+  /**
+   * Die Ausfertigung für den Kunden: Ergebnis, Anlage, nächster Termin.
+   *
+   * Die einzelnen Prüfpunkte bleiben draußen. Das vollständige Protokoll ist
+   * ein Arbeits- und Nachweisdokument des Prüfbetriebs; herausgegeben wird es
+   * auf Wunsch, nicht bei jedem Versand.
+   *
+   * Eine unfertige Prüfung lässt sich nicht bescheinigen. Ein Blatt mit
+   * Briefkopf und Unterschriftzeile, dessen Ergebnis noch offen ist, sieht wie
+   * ein Nachweis aus und ist keiner – deshalb die Absage statt eines Vermerks
+   * im Kleingedruckten.
+   */
+  async pruefbescheinigung(id: string): Promise<BelegDatei> {
+    const inspection = await prisma.inspection.findUnique({
+      where: { id },
+      include: {
+        door: { include: { customer: { include: { addresses: true } } } },
+        defects: { select: { severity: true } },
+      },
+    });
+    if (!inspection) {
+      throw new NotFoundException('Die Prüfung wurde nicht gefunden.');
+    }
+    if (!inspection.result || !inspection.completedAt) {
+      throw new BadRequestException(
+        'Die Prüfung ist noch nicht abgeschlossen. Eine Bescheinigung lässt sich erst ' +
+          'ausstellen, wenn das Ergebnis feststeht.',
+      );
+    }
+
+    const firma = await this.firma();
+    const door = inspection.door;
+    const customer = door.customer;
+
+    const buffer = await renderToBuffer(
+      <Pruefbescheinigung
+        daten={{
+          inspectionNumber: inspection.inspectionNumber,
+          type: inspection.type,
+          date: inspection.date,
+          inspectorName: inspection.inspectorName,
+          result: inspection.result,
+          nextDueDate: inspection.nextDueDate,
+          signatureInspector: inspection.signatureInspector,
+          completedAt: inspection.completedAt,
+          customerNumber: customer.customerNumber,
+          anlage: {
+            doorNumber: door.doorNumber,
+            location: door.location,
+            type: door.type,
+            operationMode: door.operationMode,
+            manufacturer: door.manufacturer,
+            model: door.model,
+            serialNumber: door.serialNumber,
+            yearBuilt: door.yearBuilt,
+          },
+          maengel: inspection.defects.map((defect) => ({ severity: defect.severity })),
+        }}
+        optionen={{ firma, empfaenger: anschrift(this.empfaenger(customer)) }}
+      />,
+    );
+
+    // Anderer Dateiname als das Protokoll: Beides kann im selben Umschlag
+    // liegen, und dann müssen sich die Anhänge unterscheiden lassen.
+    return {
+      buffer,
+      dateiname: `${inspection.inspectionNumber}${BESCHEINIGUNG_ZUSATZ}.pdf`,
+    };
   }
 
   /* Servicebericht ------------------------------------------------------ */

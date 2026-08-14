@@ -8,6 +8,12 @@ import { verboten } from '@/server/fehler';
  * Der Monteur soll den Bericht vom Einsatz mitschicken können, aber weder
  * Rechnungen noch Mahnungen – das ist dieselbe Grenze wie in der Buchhaltung.
  *
+ * Die Bescheinigung ist die Ausfertigung für den Kunden und darf denselben
+ * Personen offenstehen wie der Bericht. Das vollständige Protokoll steht
+ * daneben und mit denselben Rechten, weil es kein anderes Geheimnis hütet –
+ * herausgegeben wird es nur, wenn der Kunde danach fragt, und das ist eine
+ * Frage der Absicht, nicht der Berechtigung.
+ *
  * Umgekehrt darf die Buchhaltung Bericht und Prüfprotokoll verschicken. Das
  * stand hier zunächst nicht und war eine Lücke, keine Absicht: Zur Rechnung
  * über eine wiederkehrende Prüfung gehört das Protokoll nach ASR A1.7 in
@@ -21,6 +27,7 @@ const VERSANDRECHTE: Record<MailDocumentType, Role[]> = {
   RECHNUNG: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG],
   MAHNUNG: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG],
   SERVICEBERICHT: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG, Role.MONTEUR],
+  PRUEFBESCHEINIGUNG: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG, Role.MONTEUR],
   PRUEFPROTOKOLL: [Role.GESCHAEFTSFUEHRUNG, Role.BUERO, Role.BUCHHALTUNG, Role.MONTEUR],
 };
 

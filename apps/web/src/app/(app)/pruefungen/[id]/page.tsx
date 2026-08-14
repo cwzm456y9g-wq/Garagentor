@@ -81,6 +81,7 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
     api.postOffline(`/inspections/${id}/complete`, body, `Abschluss Prüfung ${nummer}`),
   );
   const pdf = useAction(() => api.openFile(`/inspections/${id}/pdf`));
+  const bescheinigung = useAction(() => api.openFile(`/inspections/${id}/bescheinigung`));
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <LoadingState />;
@@ -149,10 +150,38 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
         }
         actions={
           <>
-            <Button variant="secondary" loading={pdf.loading} onClick={() => void pdf.run()}>
-              Als PDF
+            {/* Was an den Kunden geht, steht vorn: die Bescheinigung mit dem
+                Ergebnis. Das vollständige Protokoll bleibt erreichbar, aber
+                als der Weg, den man ausdrücklich wählt. */}
+            {closed && (
+              <>
+                <Button
+                  variant="secondary"
+                  loading={bescheinigung.loading}
+                  onClick={() => void bescheinigung.run()}
+                >
+                  Bescheinigung als PDF
+                </Button>
+                <MailButton
+                  art="PRUEFBESCHEINIGUNG"
+                  id={id}
+                  onSent={reload}
+                  label="Bescheinigung per Mail"
+                />
+              </>
+            )}
+            <Button variant="ghost" loading={pdf.loading} onClick={() => void pdf.run()}>
+              Vollständiges Protokoll
             </Button>
-            <MailButton art="PRUEFPROTOKOLL" id={id} onSent={reload} />
+            {closed && (
+              <MailButton
+                art="PRUEFPROTOKOLL"
+                id={id}
+                onSent={reload}
+                label="Protokoll herausgeben"
+                variante="ghost"
+              />
+            )}
             {!closed && (
               <>
                 <Button
@@ -183,9 +212,11 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
         }
       />
 
-      {(save.error ?? complete.error ?? pdf.error) && (
+      {(save.error ?? complete.error ?? pdf.error ?? bescheinigung.error) && (
         <div className="mb-4">
-          <ErrorState message={(save.error ?? complete.error ?? pdf.error)!} />
+          <ErrorState
+            message={(save.error ?? complete.error ?? pdf.error ?? bescheinigung.error)!}
+          />
         </div>
       )}
 

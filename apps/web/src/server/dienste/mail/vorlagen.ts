@@ -85,6 +85,31 @@ export function istEmpfaengerGueltig(adresse: string): boolean {
   return /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(adresse.trim());
 }
 
+/**
+ * Die Absenderzeile aus Anzeigename und `MAIL_FROM`.
+ *
+ * `MAIL_FROM` darf beides sein: eine nackte Adresse oder schon
+ * „Name <adresse>“. Kommt aus den Einstellungen ein Anzeigename dazu, muss
+ * daraus wieder eine gültige Zeile werden – und nicht
+ * „Betrieb <Betrieb <post@…>>“. Genau das stand vorher in jeder Mail, und
+ * Postfächer zeigten den Absender als „Betrieb>“ an.
+ */
+export function absenderZeile(
+  absender: string | null | undefined,
+  from: string | null | undefined,
+): string | undefined {
+  const rohwert = from?.trim();
+  if (!rohwert) return undefined;
+
+  // Die Adresse steckt in spitzen Klammern, wenn ein Name davorsteht.
+  const adresse = rohwert.match(/<([^>]+)>/)?.[1]?.trim() ?? rohwert;
+  const name = absender?.trim();
+
+  if (!name) return rohwert;
+  // Anführungszeichen im Namen würden die Zeile zerlegen.
+  return `"${name.replace(/"/g, '')}" <${adresse}>`;
+}
+
 /** Zerlegt eine Liste von Empfängern, getrennt durch Komma oder Semikolon. */
 export function empfaengerListe(eingabe: string | null | undefined): string[] {
   return (eingabe ?? '')

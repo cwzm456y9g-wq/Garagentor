@@ -13,7 +13,8 @@ import { useAction } from '@/lib/hooks';
  * nicht mehr anfassen kann, wird nicht verschickt, sondern umgangen.
  */
 
-export type MailBelegart = 'ANGEBOT' | 'RECHNUNG' | 'MAHNUNG' | 'SERVICEBERICHT' | 'PRUEFPROTOKOLL';
+export type MailBelegart =
+  'ANGEBOT' | 'RECHNUNG' | 'MAHNUNG' | 'SERVICEBERICHT' | 'PRUEFBESCHEINIGUNG' | 'PRUEFPROTOKOLL';
 
 /** Ein weiterer Beleg, der im selben Umschlag mitgehen kann. */
 interface Beilage {
@@ -268,17 +269,20 @@ export function MailButton({
   id,
   onSent,
   label = 'Per Mail',
+  variante = 'secondary',
 }: {
   art: MailBelegart;
   id: string;
   onSent?: () => void;
   label?: string;
+  /** „ghost“ für den Weg, der nicht der übliche ist – etwa das vollständige Protokoll. */
+  variante?: 'primary' | 'secondary' | 'ghost';
 }) {
   const [offen, setOffen] = useState(false);
 
   return (
     <>
-      <Button variant="secondary" onClick={() => setOffen(true)}>
+      <Button variant={variante} onClick={() => setOffen(true)}>
         {label}
       </Button>
       {offen && (

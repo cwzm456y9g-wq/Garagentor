@@ -1,4 +1,5 @@
 import {
+  absenderZeile,
   empfaengerListe,
   istEmpfaengerGueltig,
   mitSignatur,
@@ -91,6 +92,39 @@ describe('Mailvorlagen', () => {
       expect(empfaengerListe('a@b.de, c@d.de; e@f.de')).toEqual(['a@b.de', 'c@d.de', 'e@f.de']);
       expect(empfaengerListe('  ')).toEqual([]);
       expect(empfaengerListe(null)).toEqual([]);
+    });
+  });
+
+  describe('Absenderzeile', () => {
+    it('schachtelt keine zweite Klammer, wenn MAIL_FROM schon einen Namen trägt', () => {
+      // Der Fehler war im Postfach als Absender „Betrieb>" zu sehen.
+      expect(absenderZeile('Zeller Tore', 'Zeller Tore <post@zeller-tore.de>')).toBe(
+        '"Zeller Tore" <post@zeller-tore.de>',
+      );
+    });
+
+    it('ergänzt den Namen um eine nackte Adresse', () => {
+      expect(absenderZeile('Zeller Tore', 'post@zeller-tore.de')).toBe(
+        '"Zeller Tore" <post@zeller-tore.de>',
+      );
+    });
+
+    it('lässt MAIL_FROM unangetastet, wenn kein Name gepflegt ist', () => {
+      expect(absenderZeile(null, 'Zeller Tore <post@zeller-tore.de>')).toBe(
+        'Zeller Tore <post@zeller-tore.de>',
+      );
+      expect(absenderZeile('  ', 'post@zeller-tore.de')).toBe('post@zeller-tore.de');
+    });
+
+    it('entfernt Anführungszeichen aus dem Namen, die die Zeile zerlegen würden', () => {
+      expect(absenderZeile('Zeller "Tore"', 'post@zeller-tore.de')).toBe(
+        '"Zeller Tore" <post@zeller-tore.de>',
+      );
+    });
+
+    it('gibt ohne MAIL_FROM nichts zurück', () => {
+      expect(absenderZeile('Zeller Tore', null)).toBeUndefined();
+      expect(absenderZeile('Zeller Tore', '   ')).toBeUndefined();
     });
   });
 });
