@@ -15,6 +15,7 @@ import { paginate } from '@/server/anfrage';
 import { konfiguration, type Konfiguration } from '@/server/konfiguration';
 
 import type { MailLogQueryDto, SendMailDto } from './dto/mail.dto';
+import { smtpFehlerbild, type Fehlerbild } from './smtp-fehler';
 import {
   absenderZeile,
   empfaengerListe,
@@ -40,6 +41,18 @@ const BEILAGEN_MONATE = 6;
 
 /** Damit die Auswahl eine Auswahl bleibt und keine Chronik. */
 const BEILAGEN_HOECHSTZAHL = 10;
+
+/**
+ * Fristen gegenüber dem Mailserver.
+ *
+ * Sie liegen bewußt unter der halben Minute, die der Browser wartet: Sonst
+ * bräche die Anfrage ab, bevor der Mailserver seinen Grund genannt hat, und
+ * übrig bliebe „Der Server hat nicht geantwortet" – die eine Meldung, mit der
+ * niemand etwas anfangen kann.
+ */
+const VERBINDUNG_GEDULD_MS = 15_000;
+const BEGRUESSUNG_GEDULD_MS = 10_000;
+const ANTWORT_GEDULD_MS = 20_000;
 
 /**
  * Wie der Hauptanhang heißen wird.
@@ -180,6 +193,7 @@ export class MailService {
     let status: MailStatus = MailStatus.GESENDET;
     let fehler: string | null = null;
     let messageId: string | null = null;
+    let bild: Fehlerbild | null = null;
 
     try {
       const ergebnis = await this.transport().sendMail({
@@ -197,7 +211,8 @@ export class MailService {
       messageId = ergebnis.messageId ?? null;
     } catch (error) {
       status = MailStatus.FEHLGESCHLAGEN;
-      fehler = error instanceof Error ? error.message : String(error);
+      bild = smtpFehlerbild(error);
+      fehler = bild.wortlaut;
       this.logger.error(`Versand von ${beleg.reference} an ${dto.an} fehlgeschlagen: ${fehler}`);
     }
 
@@ -219,8 +234,10 @@ export class MailService {
     });
 
     if (status === MailStatus.FEHLGESCHLAGEN) {
+      // Der Wortlaut des Mailservers steht im Protokoll; hier steht der Satz,
+      // mit dem jemand am Bildschirm etwas anfangen kann.
       throw new ServiceUnavailableException(
-        `Der Versand ist fehlgeschlagen: ${fehler ?? 'unbekannter Grund'}`,
+        [bild?.meldung ?? 'Der Versand ist fehlgeschlagen.', bild?.rat].filter(Boolean).join(' '),
       );
     }
 
@@ -274,8 +291,134 @@ export class MailService {
       port: mail.port,
       secure: mail.secure,
       ...(mail.user && mail.password ? { auth: { user: mail.user, pass: mail.password } } : {}),
+      // Ohne eigene Fristen wartet nodemailer zwei Minuten. So lange hält
+      // niemand vor dem Bildschirm aus – und der Browser gibt vorher auf, so
+      // daß am Ende eine nichtssagende Zeitüberschreitung stünde statt der
+      // Meldung des Mailservers.
+      connectionTimeout: VERBINDUNG_GEDULD_MS,
+      greetingTimeout: BEGRUESSUNG_GEDULD_MS,
+      socketTimeout: ANTWORT_GEDULD_MS,
     });
     return this.transporter;
+  }
+
+  /* Einrichtung --------------------------------------------------------- */
+
+  /**
+   * Prüft die Verbindung, ohne etwas zu verschicken.
+   *
+   * Der Sinn ist der Zeitpunkt: Ob der Postausgang stimmt, soll sich in den
+   * Einstellungen zeigen und nicht daran, daß eine Rechnung den Kunden nicht
+   * erreicht. Nodemailer baut dafür die Verbindung auf und meldet sich an –
+   * genau die zwei Schritte, an denen es üblicherweise scheitert.
+   */
+  async pruefen(): Promise<{ ok: boolean; meldung: string; rat: string | null; dauerMs: number }> {
+    if (!this.eingerichtet()) {
+      return {
+        ok: false,
+        meldung: 'Es ist kein Postausgang hinterlegt.',
+        rat: 'MAIL_HOST und MAIL_FROM gehören in hPanel unter „Node.js" als Umgebungsvariablen.',
+        dauerMs: 0,
+      };
+    }
+
+    const beginn = Date.now();
+    try {
+      await this.transport().verify();
+      const mail = this.einstellungenAusUmgebung;
+
+      return {
+        ok: true,
+        meldung: `Verbindung zu ${mail.host}:${mail.port} steht, die Anmeldung wurde angenommen.`,
+        rat: null,
+        dauerMs: Date.now() - beginn,
+      };
+    } catch (error) {
+      const bild = smtpFehlerbild(error);
+      this.logger.warn(`Prüfung des Postausgangs fehlgeschlagen: ${bild.wortlaut}`);
+
+      return { ok: false, meldung: bild.meldung, rat: bild.rat, dauerMs: Date.now() - beginn };
+    }
+  }
+
+  /**
+   * Verschickt eine Testmail.
+   *
+   * Die Prüfung oben zeigt nur, daß die Anmeldung klappt. Ob eine Nachricht
+   * auch wirklich hinausgeht und wie sie beim Empfänger aussieht – Absender,
+   * Signatur, Umlaute – zeigt erst eine echte Mail. Sie steht anschließend im
+   * Versandprotokoll wie jede andere.
+   */
+  async testmail(an: string): Promise<{ ok: boolean; meldung: string; rat: string | null }> {
+    if (!istEmpfaengerGueltig(an)) {
+      throw new BadRequestException(`"${an}" ist keine gültige E-Mail-Adresse.`);
+    }
+    if (!this.eingerichtet()) {
+      throw new ServiceUnavailableException(
+        'Der Postausgang ist nicht eingerichtet. MAIL_HOST und MAIL_FROM gehören in die ' +
+          'Umgebung des Servers.',
+      );
+    }
+
+    const mail = this.einstellungenAusUmgebung;
+    const einstellungen = await this.einstellungen();
+    const betreff = 'Testmail aus der Garagentor-Anwendung';
+    const text = mitSignatur(
+      'dies ist eine Testmail aus der Garagentor-Anwendung.\n\n' +
+        'Wenn sie lesbar bei Ihnen ankommt – mit richtigem Absender und mit Umlauten in\n' +
+        '„Größe, Prüfung, Straße" – ist der Postausgang richtig eingerichtet.',
+      einstellungen.signatur ?? (await this.signaturAusFirma()),
+    );
+
+    let status: MailStatus = MailStatus.GESENDET;
+    let fehler: string | null = null;
+    let messageId: string | null = null;
+    let bild: Fehlerbild | null = null;
+
+    try {
+      const ergebnis = await this.transport().sendMail({
+        from: absenderZeile(einstellungen.absender, mail.from),
+        to: an,
+        ...(einstellungen.antwortAn || mail.replyTo
+          ? { replyTo: einstellungen.antwortAn || mail.replyTo! }
+          : {}),
+        subject: betreff,
+        text,
+      });
+      messageId = ergebnis.messageId ?? null;
+    } catch (error) {
+      status = MailStatus.FEHLGESCHLAGEN;
+      bild = smtpFehlerbild(error);
+      fehler = bild.wortlaut;
+      this.logger.error(`Testmail an ${an} fehlgeschlagen: ${fehler}`);
+    }
+
+    // Auch die Testmail gehört ins Protokoll: Wer später sucht, warum an einem
+    // Tag Post ausblieb, findet dort den Versuch samt Grund.
+    await prisma.mailLog.create({
+      data: {
+        entityType: null,
+        entityId: null,
+        reference: 'Testmail',
+        recipient: an,
+        cc: null,
+        subject: betreff,
+        body: text,
+        attachments: [],
+        status,
+        error: fehler,
+        messageId,
+        sentById: currentUserId() ?? null,
+      },
+    });
+
+    return bild
+      ? { ok: false, meldung: bild.meldung, rat: bild.rat }
+      : {
+          ok: true,
+          meldung: `Die Testmail ist an ${an} hinausgegangen. Sie steht im Versandprotokoll.`,
+          rat: null,
+        };
   }
 
   private async einstellungen(): Promise<MailEinstellungen> {

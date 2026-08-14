@@ -874,6 +874,138 @@ function PruefungKarte({
 
 /* Postausgang ---------------------------------------------------------- */
 
+/** Zustand des Postausgangs, wie ihn der Server meldet. */
+interface MailStatusInfo {
+  eingerichtet: boolean;
+  host: string | null;
+  port: number;
+  secure: boolean;
+  absender: string | null;
+}
+
+interface Befund {
+  ok: boolean;
+  meldung: string;
+  rat: string | null;
+}
+
+/**
+ * Einrichtung und Prüfung des Postausgangs.
+ *
+ * Bisher stand hier nur der Hinweis, wo die Zugangsdaten hingehören. Das ist
+ * richtig, half aber nicht weiter: Ob sie stimmen, zeigte sich erst, wenn eine
+ * Rechnung den Kunden nicht erreichte – und die Meldung dazu war englisch und
+ * nichtssagend.
+ *
+ * Jetzt läßt sich die Verbindung hier prüfen und eine Testmail schicken, bevor
+ * der erste echte Beleg hinausgeht.
+ */
+function Verbindungspruefung() {
+  const status = useApi<MailStatusInfo>('/mail/status');
+  const [an, setAn] = useState('');
+  const [befund, setBefund] = useState<Befund | null>(null);
+
+  const pruefen = useAction(() => api.post<Befund>('/mail/pruefen'));
+  const testen = useAction((adresse: string) =>
+    api.post<Befund>('/mail/testmail', { an: adresse }),
+  );
+
+  const daten = status.data;
+  const laeuft = pruefen.loading || testen.loading;
+
+  return (
+    <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium text-slate-700">Postausgang</span>
+        {status.loading ? (
+          <span className="text-slate-500">wird geprüft …</span>
+        ) : daten?.eingerichtet ? (
+          <>
+            <Badge tone="success">eingerichtet</Badge>
+            <span className="tabular text-slate-600">
+              {daten.host}:{daten.port} · {daten.secure ? 'durchgehend verschlüsselt' : 'STARTTLS'}
+            </span>
+          </>
+        ) : (
+          <Badge tone="warning">nicht eingerichtet</Badge>
+        )}
+      </div>
+
+      {!status.loading && !daten?.eingerichtet && (
+        <div className="text-xs text-slate-600">
+          <p>
+            Die Zugangsdaten gehören in hPanel unter „Node.js" als Umgebungsvariablen – nicht in
+            diese Anwendung. So stehen sie weder in der Datenbank noch in einer Sicherung, die
+            weitergereicht wird. Nach dem Eintragen die Anwendung dort neu starten.
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded border border-slate-200 bg-white p-2 leading-5">
+            {[
+              'MAIL_HOST      smtp.hostinger.com',
+              'MAIL_PORT      465',
+              'MAIL_SECURE    true',
+              'MAIL_USER      post@ihre-domain.de   (die vollständige Adresse)',
+              'MAIL_PASSWORD  das Kennwort des Postfachs',
+              'MAIL_FROM      Zeller Tore <post@ihre-domain.de>',
+            ].join('\n')}
+          </pre>
+          <p className="mt-2">
+            Bei Port 587 gehört MAIL_SECURE auf false. Die beiden zu verwechseln ist der häufigste
+            Fehler – die Prüfung unten sagt es Ihnen dann auch.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={pruefen.loading}
+          disabled={laeuft}
+          onClick={async () => {
+            const ergebnis = await pruefen.run();
+            if (ergebnis) setBefund(ergebnis);
+            status.reload();
+          }}
+        >
+          Verbindung prüfen
+        </Button>
+
+        <div className="flex items-end gap-2">
+          <Input
+            id="mail-test-an"
+            type="email"
+            value={an}
+            onChange={(event) => setAn(event.target.value)}
+            placeholder="ihre@adresse.de"
+            className="w-56"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={testen.loading}
+            disabled={laeuft || !an.trim()}
+            onClick={async () => {
+              const ergebnis = await testen.run(an.trim());
+              if (ergebnis) setBefund(ergebnis);
+            }}
+          >
+            Testmail senden
+          </Button>
+        </div>
+      </div>
+
+      {(pruefen.error ?? testen.error) && <ErrorState message={(pruefen.error ?? testen.error)!} />}
+
+      {befund && (
+        <div className={befund.ok ? 'meldung-erfolg' : 'meldung-hinweis'}>
+          <p>{befund.meldung}</p>
+          {befund.rat && <p className="mt-1 text-xs">{befund.rat}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PostausgangKarte({ geladen, neuLaden }: { geladen: MailSettings; neuLaden: () => void }) {
   const [entwurf, setEntwurf] = useState<MailSettings | null>(null);
   const [offen, setOffen] = useState<MailDocumentType>('RECHNUNG');
@@ -916,11 +1048,7 @@ function PostausgangKarte({ geladen, neuLaden }: { geladen: MailSettings; neuLad
       <div className="card-body space-y-4">
         {speichern.error && <ErrorState message={speichern.error} />}
 
-        <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-          Die Zugangsdaten des Mailservers stehen bewusst nicht hier, sondern als MAIL_HOST,
-          MAIL_PORT, MAIL_USER, MAIL_PASSWORD und MAIL_FROM in der Umgebung des Servers. So landen
-          sie weder in der Datenbank noch in einer Sicherung, die weitergereicht wird.
-        </p>
+        <Verbindungspruefung />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Absendername" htmlFor="mail-absender" hint="Steht vor der Adresse.">
