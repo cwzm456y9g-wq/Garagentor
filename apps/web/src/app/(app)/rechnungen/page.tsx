@@ -10,6 +10,7 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
+import { RechnungEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, LoadingState, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -68,10 +69,11 @@ function InvoiceList() {
           <th>Fällig</th>
           <th>Status</th>
           <th className="text-right">Brutto</th>
+          <th />
         </>
       }
       renderRow={(invoice) => {
-        const state = invoiceStatus(invoice.status);
+        const anzeige = invoiceStatus(invoice.status);
         const overdue =
           invoice.status === 'UEBERFAELLIG' ||
           (invoice.status !== 'BEZAHLT' &&
@@ -105,13 +107,16 @@ function InvoiceList() {
               </span>
             </td>
             <td>
-              <Badge tone={state.tone}>{state.label}</Badge>
+              <Badge tone={anzeige.tone}>{anzeige.label}</Badge>
               {invoice.dunningLevel && (
                 <span className="mt-0.5 block text-xs text-slate-500">gemahnt</span>
               )}
             </td>
             <td className="tabular whitespace-nowrap text-right font-medium">
               {formatCurrency(invoice.grossTotal)}
+            </td>
+            <td className="whitespace-nowrap text-right">
+              <RechnungEntfernen rechnung={invoice} klein onEntfernt={() => state.reload()} />
             </td>
           </>
         );

@@ -8,6 +8,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { AngebotEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -56,6 +57,7 @@ export default function QuotesPage() {
             <th>Gültig bis</th>
             <th>Status</th>
             <th className="text-right">Brutto</th>
+            <th />
           </>
         }
         renderRow={(quote) => {
@@ -89,6 +91,9 @@ export default function QuotesPage() {
               </td>
               <td className="tabular whitespace-nowrap text-right font-medium">
                 {formatCurrency(quote.grossTotal)}
+              </td>
+              <td className="whitespace-nowrap text-right">
+                <AngebotEntfernen angebot={quote} klein onEntfernt={() => state.reload()} />
               </td>
             </>
           );

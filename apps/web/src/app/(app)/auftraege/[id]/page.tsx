@@ -12,6 +12,7 @@ import {
   type OrderStatus,
 } from '@garagentor/shared';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { use, useState } from 'react';
 import { DocumentItems } from '@/components/document-items';
 import {
@@ -26,6 +27,7 @@ import {
   Select,
   Table,
 } from '@/components/ui';
+import { AuftragEntfernen } from '@/components/beleg-entfernen';
 import { api } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useAction, useApi } from '@/lib/hooks';
@@ -45,6 +47,7 @@ const NEXT_STATUSES: Record<OrderStatus, OrderStatus[]> = {
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { hasRole } = useAuth();
   const { data, loading, error, reload } = useApi<Order>(`/orders/${id}`);
   const mayInvoice = hasRole('GESCHAEFTSFUEHRUNG', 'BUERO', 'BUCHHALTUNG');
@@ -101,6 +104,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             {mayInvoice && data.status !== 'STORNIERT' && (
               <Button onClick={() => setInvoiceOpen((open) => !open)}>Rechnung erstellen</Button>
             )}
+            <AuftragEntfernen auftrag={data} onEntfernt={() => router.push('/auftraege')} />
           </>
         }
       />

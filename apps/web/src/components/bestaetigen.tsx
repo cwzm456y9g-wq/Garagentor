@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Card, ErrorState, Field, Textarea } from '@/components/ui';
 
 /**
@@ -41,9 +42,15 @@ export function Bestaetigen({
   const [grund, setGrund] = useState('');
   const fehltGrund = Boolean(grundPflicht && !grund.trim());
 
-  return (
+  // Erst nach dem ersten Malen: Beim Rendern auf dem Server gibt es kein
+  // `document`, an das sich das Fenster hängen könnte.
+  const [bereit, setBereit] = useState(false);
+  useEffect(() => setBereit(true), []);
+  if (!bereit) return null;
+
+  const fenster = (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:p-8"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 whitespace-normal sm:p-8"
       role="dialog"
       aria-modal="true"
       aria-label={titel}
@@ -88,4 +95,14 @@ export function Bestaetigen({
       </div>
     </div>
   );
+
+  // Das Fenster hängt am Seitenrumpf und nicht dort, wo der Knopf steht.
+  //
+  // Der Grund ist nicht Ordnungsliebe: Die Knöpfe stehen in Tabellenzellen mit
+  // `whitespace-nowrap`, damit die Spalte nicht umbricht. Diese Regel vererbt
+  // sich entlang des Dokuments – auch in ein Fenster hinein, das optisch längst
+  // woanders liegt. Der erklärende Text lief dadurch als eine einzige Zeile aus
+  // dem Fenster hinaus: gemessen 2607 Pixel Inhalt in einem 470 Pixel breiten
+  // Kasten. Am Rumpf erbt er nichts davon.
+  return createPortal(fenster, document.body);
 }

@@ -9,7 +9,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
-import { EntfernenKnopf } from '@/components/entfernen';
+import { AuftragEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -125,20 +125,7 @@ export default function OrdersPage() {
               </td>
 
               <td className="whitespace-nowrap text-right">
-                <EntfernenKnopf
-                  klein
-                  pfad={`/orders/${order.id}`}
-                  titel={`Auftrag ${order.orderNumber} entfernen`}
-                  beschriftung="Entfernen"
-                  beschreibung={
-                    <>
-                      Der Auftrag wird entfernt. Hängt eine Rechnung daran, lehnt der Server das ab
-                      – ein gestellter Beleg braucht seinen Vorgang. Das Angebot dahinter bleibt
-                      bestehen.
-                    </>
-                  }
-                  onEntfernt={() => state.reload()}
-                />
+                <AuftragEntfernen auftrag={order} klein onEntfernt={() => state.reload()} />
               </td>
             </>
           );
