@@ -121,6 +121,7 @@ export default function SettingsPage() {
           <AblageKarte />
           <SicherungKarte />
           <NummernkreiseKarte ranges={ranges} />
+          <ZuruecksetzenKarte onFertig={ranges.reload} />
         </div>
       )}
     </>
@@ -1463,6 +1464,288 @@ function SicherungKarte() {
         <Button loading={laden.loading} onClick={() => void laden.run()}>
           Sicherung herunterladen
         </Button>
+      </div>
+    </Card>
+  );
+}
+
+/* Zurücksetzen --------------------------------------------------------- */
+
+interface Umfang {
+  kunden: number;
+  ansprechpartner: number;
+  adressen: number;
+  objekte: number;
+  anlagen: number;
+  pruefungen: number;
+  pruefpunkte: number;
+  maengel: number;
+  serviceberichte: number;
+  wartungsvertraege: number;
+  angebote: number;
+  auftraege: number;
+  rechnungen: number;
+  zahlungen: number;
+  mahnungen: number;
+  termine: number;
+  projekte: number;
+  zeiten: number;
+  lagerbewegungen: number;
+  dokumente: number;
+  postausgang: number;
+  protokoll: number;
+}
+
+interface Zuruecksetzvorschau {
+  loeschen: Umfang;
+  bleiben: {
+    artikel: number;
+    lieferanten: number;
+    bestellungen: number;
+    mitarbeiter: number;
+    zugaenge: number;
+    einstellungen: number;
+  };
+  unberuehrt: { termine: number; projekte: number };
+  bestandskorrekturen: number;
+  bestaetigungswort: string;
+}
+
+interface Zuruecksetzbericht {
+  geloescht: Umfang;
+  dateien: { entfernt: number; fehlgeschlagen: number };
+  bestandskorrekturen: number;
+  ungerechneteBuchungen: number;
+  nummernkreise: string[];
+}
+
+/** Reihenfolge und Beschriftung der Zeilen im Umfang. */
+const UMFANG_ZEILEN: Array<[keyof Umfang, string]> = [
+  ['kunden', 'Kunden'],
+  ['ansprechpartner', 'Ansprechpartner'],
+  ['adressen', 'Adressen'],
+  ['objekte', 'Objekte'],
+  ['anlagen', 'Toranlagen'],
+  ['pruefungen', 'Prüfungen'],
+  ['pruefpunkte', 'Prüfpunkte'],
+  ['maengel', 'Mängel'],
+  ['serviceberichte', 'Serviceberichte'],
+  ['wartungsvertraege', 'Wartungsverträge'],
+  ['angebote', 'Angebote'],
+  ['auftraege', 'Aufträge'],
+  ['rechnungen', 'Rechnungen'],
+  ['zahlungen', 'Zahlungen'],
+  ['mahnungen', 'Mahnungen'],
+  ['termine', 'Termine'],
+  ['projekte', 'Projekte'],
+  ['zeiten', 'Zeiterfassungen'],
+  ['lagerbewegungen', 'Lagerbewegungen'],
+  ['dokumente', 'Dateien'],
+  ['postausgang', 'Postausgang'],
+  ['protokoll', 'Änderungsprotokoll'],
+];
+
+/** „1 Bestellung“ statt „1 Bestellungen“. */
+function zahlwort(anzahl: number, eins: string, viele: string): string {
+  return `${anzahl} ${anzahl === 1 ? eins : viele}`;
+}
+
+/**
+ * Betriebsdaten zurücksetzen.
+ *
+ * Der Übergang von der Erprobung zum Ernstfall. Wer eine Software einführt,
+ * probiert sie zuerst an erfundenen Kunden durch – und steht dann vor der
+ * Aufgabe, das Probematerial restlos loszuwerden, bevor die ersten echten
+ * Daten hineinkommen. Von Hand geht das nicht: Ein Kunde läßt sich nicht
+ * löschen, solange eine Rechnung an ihm hängt.
+ *
+ * Die Karte zeigt vorher jede betroffene Zeile. Das ist der eigentliche
+ * Schutz – nicht die Rückfrage, sondern die Zahl davor.
+ */
+function ZuruecksetzenKarte({ onFertig }: { onFertig: () => void }) {
+  const vorschau = useApi<Zuruecksetzvorschau>('/settings/zuruecksetzen');
+  const [offen, setOffen] = useState(false);
+  const [wort, setWort] = useState('');
+  const [nummernkreise, setNummernkreise] = useState(true);
+  const [bericht, setBericht] = useState<Zuruecksetzbericht | null>(null);
+
+  const loeschen = useAction(() =>
+    api.post<Zuruecksetzbericht>('/settings/zuruecksetzen', {
+      bestaetigung: wort.trim(),
+      nummernkreise,
+    }),
+  );
+
+  const daten = vorschau.data;
+  const zeilen = daten ? UMFANG_ZEILEN.filter(([schluessel]) => daten.loeschen[schluessel] > 0) : [];
+  const summe = zeilen.reduce((wert, [schluessel]) => wert + (daten?.loeschen[schluessel] ?? 0), 0);
+  const wortStimmt = daten ? wort.trim() === daten.bestaetigungswort : false;
+
+  return (
+    <Card title="Betriebsdaten zurücksetzen">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Löscht alle Kunden samt ihren Vorgängen – Anlagen, Prüfungen, Mängel, Serviceberichte,
+          Angebote, Aufträge, Rechnungen und was daran hängt. Gedacht für den einen Tag, an dem die
+          Erprobung endet und die ersten echten Daten hineinsollen.
+        </p>
+
+        <p className="text-sm text-slate-600">
+          Was dem Betrieb selbst gehört, bleibt: Artikel, Lieferanten, Bestellungen, Mitarbeiter,
+          Zugänge und alle Einstellungen.
+        </p>
+
+        <p className="meldung-hinweis">
+          Das läßt sich nicht rückgängig machen. Laden Sie vorher eine Sicherung herunter – die
+          Karte darüber – und legen Sie sie weg. Danach ist sie das einzige, was von diesen Daten
+          noch übrig ist.
+        </p>
+
+        {vorschau.error ? (
+          <ErrorState message={vorschau.error} onRetry={vorschau.reload} />
+        ) : vorschau.loading ? (
+          <LoadingState />
+        ) : daten ? (
+          <>
+            {summe === 0 ? (
+              <p className="meldung-erfolg">Es sind keine Vorgangsdaten vorhanden.</p>
+            ) : (
+              <div className="rounded border border-slate-200">
+                <p className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
+                  Das wird gelöscht
+                </p>
+                <ul className="divide-y divide-slate-100 text-sm">
+                  {zeilen.map(([schluessel, beschriftung]) => (
+                    <li key={schluessel} className="flex justify-between px-3 py-1.5">
+                      <span className="text-slate-700">{beschriftung}</span>
+                      <span className="tabular-nums text-slate-900">
+                        {daten.loeschen[schluessel]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500">
+              Bleiben stehen: {zahlwort(daten.bleiben.artikel, 'Artikel', 'Artikel')},{' '}
+              {zahlwort(daten.bleiben.lieferanten, 'Lieferant', 'Lieferanten')},{' '}
+              {zahlwort(daten.bleiben.bestellungen, 'Bestellung', 'Bestellungen')},{' '}
+              {zahlwort(daten.bleiben.mitarbeiter, 'Mitarbeiter', 'Mitarbeiter')},{' '}
+              {zahlwort(daten.bleiben.zugaenge, 'Zugang', 'Zugänge')},{' '}
+              {zahlwort(daten.bleiben.einstellungen, 'Einstellung', 'Einstellungen')}.
+              {(daten.unberuehrt.termine > 0 || daten.unberuehrt.projekte > 0) && (
+                <>
+                  {' '}
+                  Ebenfalls unberührt: {zahlwort(daten.unberuehrt.termine, 'Termin', 'Termine')} und{' '}
+                  {zahlwort(daten.unberuehrt.projekte, 'Projekt', 'Projekte')} ohne Kundenbezug –
+                  die gehören zu keinem Vorgang.
+                </>
+              )}
+              {daten.bestandskorrekturen > 0 && (
+                <>
+                  {' '}
+                  Bei {zahlwort(daten.bestandskorrekturen, 'Artikel', 'Artikeln')} wird das Material
+                  zurückgebucht, das ein gelöschter Servicebericht aus dem Lager genommen hatte.
+                </>
+              )}
+            </p>
+          </>
+        ) : null}
+
+        {!offen ? (
+          <Button variant="danger" disabled={summe === 0} onClick={() => setOffen(true)}>
+            Zurücksetzen …
+          </Button>
+        ) : (
+          <div className="space-y-3 rounded border border-fehler/30 bg-fehler/5 p-4">
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-slate-300"
+                checked={nummernkreise}
+                onChange={(event) => setNummernkreise(event.target.checked)}
+              />
+              <span>
+                Belegnummern wieder bei 1 beginnen
+                <span className="block text-xs text-slate-500">
+                  Sonst trägt Ihre erste echte Rechnung die Nummer, die auf die letzte Probe folgt.
+                  Betrifft nur die Belegarten, deren Belege hier verschwinden – Lieferanten,
+                  Artikel, Mitarbeiter und Bestellungen behalten ihre Nummern.
+                </span>
+              </span>
+            </label>
+
+            <Field
+              label={`Zum Bestätigen „${daten?.bestaetigungswort ?? ''}“ eintippen`}
+              htmlFor="zuruecksetzen-wort"
+              required
+            >
+              <Input
+                id="zuruecksetzen-wort"
+                value={wort}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) => setWort(event.target.value)}
+              />
+            </Field>
+
+            {loeschen.error && <ErrorState message={loeschen.error} />}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                loading={loeschen.loading}
+                disabled={!wortStimmt}
+                onClick={async () => {
+                  const ergebnis = await loeschen.run();
+                  if (!ergebnis) return;
+                  setBericht(ergebnis);
+                  setOffen(false);
+                  setWort('');
+                  vorschau.reload();
+                  onFertig();
+                }}
+              >
+                Endgültig zurücksetzen
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setOffen(false);
+                  setWort('');
+                }}
+              >
+                Abbrechen
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {bericht && (
+          <div className="meldung-erfolg">
+            <p>
+              Zurückgesetzt: {zahlwort(bericht.geloescht.kunden, 'Kunde', 'Kunden')},{' '}
+              {zahlwort(bericht.geloescht.anlagen, 'Toranlage', 'Toranlagen')},{' '}
+              {zahlwort(bericht.geloescht.pruefungen, 'Prüfung', 'Prüfungen')},{' '}
+              {zahlwort(bericht.geloescht.serviceberichte, 'Servicebericht', 'Serviceberichte')},{' '}
+              {zahlwort(bericht.geloescht.angebote, 'Angebot', 'Angebote')},{' '}
+              {zahlwort(bericht.geloescht.auftraege, 'Auftrag', 'Aufträge')},{' '}
+              {zahlwort(bericht.geloescht.rechnungen, 'Rechnung', 'Rechnungen')}.
+            </p>
+            <p className="mt-1 text-xs">
+              {zahlwort(bericht.dateien.entfernt, 'Datei', 'Dateien')} aus der Ablage entfernt
+              {bericht.dateien.fehlgeschlagen > 0 &&
+                `, ${bericht.dateien.fehlgeschlagen} nicht erreichbar`}
+              .
+              {bericht.bestandskorrekturen > 0 &&
+                ` Bei ${zahlwort(bericht.bestandskorrekturen, 'Artikel', 'Artikeln')} wurde der Bestand zurückgebucht.`}
+              {bericht.ungerechneteBuchungen > 0 &&
+                ` ${zahlwort(bericht.ungerechneteBuchungen, 'Lagerbuchung ließ', 'Lagerbuchungen ließen')} sich nicht zurückrechnen – bitte den Bestand dieser Artikel prüfen.`}
+              {bericht.nummernkreise.length > 0 && ' Die Belegnummern beginnen wieder bei 1.'}
+            </p>
+          </div>
+        )}
       </div>
     </Card>
   );
