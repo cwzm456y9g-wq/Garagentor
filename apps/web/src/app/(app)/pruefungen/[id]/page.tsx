@@ -26,6 +26,7 @@ import {
 } from '@/components/ui';
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
+import { aufOkSetzen, fehlendeMesswerte, offenePunkte } from '@/lib/pruefpunkte';
 import { defectSeverity, inspectionResult } from '@/lib/status';
 import type { DocumentEntry, Inspection, InspectionCheck } from '@/lib/types';
 
@@ -117,6 +118,17 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
     setDrafts((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
   }
 
+  /**
+   * Setzt die noch offenen Punkte auf „in Ordnung" – alle oder nur eine Gruppe.
+   * Die Regeln dazu stehen in `pruefpunkte.ts` und werden dort geprüft.
+   */
+  function alleAufOk(punkte: InspectionCheck[]) {
+    setDrafts((current) => aufOkSetzen(punkte, current) as Record<string, CheckDraft>);
+  }
+
+  const offene = offenePunkte(checks, drafts);
+  const wartenAufMesswert = fehlendeMesswerte(checks, drafts);
+
   async function saveChecks() {
     const payload = checks
       .filter((check) => drafts[check.key])
@@ -184,6 +196,13 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
             )}
             {!closed && (
               <>
+                <Button
+                  variant="secondary"
+                  disabled={offene.length === wartenAufMesswert.length}
+                  onClick={() => alleAufOk(checks)}
+                >
+                  Alles in Ordnung
+                </Button>
                 <Button
                   variant="secondary"
                   loading={save.loading}
@@ -299,6 +318,18 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
         </Card>
       )}
 
+      {!closed && wartenAufMesswert.length > 0 && (
+        <p className="meldung-hinweis mb-6">
+          {wartenAufMesswert.length === 1
+            ? 'Ein Prüfpunkt bleibt offen, weil er einen Meßwert verlangt: '
+            : `${wartenAufMesswert.length} Prüfpunkte bleiben offen, weil sie einen Meßwert verlangen: `}
+          {wartenAufMesswert.map((check) => `Nr. ${check.position} ${check.label}`).join(', ')}.
+          „Alles in Ordnung“ setzt sie nicht mit – im Protokoll stünde sonst eine Messung, die
+          niemand vorgenommen hat, und genau diese Punkte entscheiden im Schadensfall. Meßwert
+          eintragen, dann werden sie mitgesetzt.
+        </p>
+      )}
+
       <Card title="Fotos zur Anlage" className="mb-6">
         <PhotoGallery
           photos={fotosZu(null)}
@@ -315,7 +346,21 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
 
       <div className="space-y-6">
         {Object.entries(groups).map(([group, items]) => (
-          <Card key={group} title={group} bodyClassName="">
+          <Card
+            key={group}
+            title={group}
+            bodyClassName=""
+            // Je Gruppe, weil man beim Prüfen gruppenweise vorgeht: erst die
+            // Sichtprüfung, dann die Schutzeinrichtungen. Wer eine Gruppe
+            // durchhat, hakt sie ab, statt bis zum Ende zu warten.
+            actions={
+              !closed && offenePunkte(items, drafts).length > 0 ? (
+                <Button size="sm" variant="ghost" onClick={() => alleAufOk(items)}>
+                  Gruppe in Ordnung
+                </Button>
+              ) : undefined
+            }
+          >
             <ul className="divide-y divide-slate-100">
               {items.map((check) => {
                 const draft = drafts[check.key] ?? {
