@@ -118,6 +118,7 @@ export default function SettingsPage() {
             neuLaden={settings.reload}
           />
           <DatevKarte geladen={wertVon<DatevSettings>('datev') ?? {}} neuLaden={settings.reload} />
+          <AblageKarte />
           <SicherungKarte />
           <NummernkreiseKarte ranges={ranges} />
         </div>
@@ -1294,6 +1295,118 @@ function DatevKarte({ geladen, neuLaden }: { geladen: DatevSettings; neuLaden: (
       </div>
 
       <VorlagenLeiste settingKey="datev" bezeichnung="DATEV-Vorgaben" neuLaden={neuLaden} />
+    </Card>
+  );
+}
+
+/* Dateiablage ---------------------------------------------------------- */
+
+interface AblageStatus {
+  eingerichtet: boolean;
+  adresse: string | null;
+  bucket: string;
+  schluesselGesetzt: boolean;
+}
+
+interface AblageBefund extends Befund {
+  schritte: string[];
+}
+
+/**
+ * Einrichtung und Prüfung der Dateiablage.
+ *
+ * Hochgeladene Dateien liegen nicht auf dem Webhosting, sondern in Supabase
+ * Storage – auf geteiltem Webhosting übersteht eine Datei das nächste
+ * Ausrollen nicht zuverlässig, und ein Prüfprotokoll ohne seine Fotos ist als
+ * Nachweis wertlos.
+ *
+ * Fehlt die Einrichtung, scheitert jeder Upload. Das stand vorher nur in der
+ * Fehlermeldung beim Versuch; hier steht es vorher – mit den Werten, die
+ * einzutragen sind, und einer Prüfung, die eine Datei wirklich hin- und
+ * zurückschickt.
+ */
+function AblageKarte() {
+  const status = useApi<AblageStatus>('/ablage');
+  const [befund, setBefund] = useState<AblageBefund | null>(null);
+  const pruefen = useAction(() => api.post<AblageBefund>('/ablage/pruefen'));
+
+  const daten = status.data;
+
+  return (
+    <Card title="Dateiablage">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium text-slate-700">Ablage</span>
+          {status.loading ? (
+            <span className="text-slate-500">wird geprüft …</span>
+          ) : daten?.eingerichtet ? (
+            <>
+              <Badge tone="success">eingerichtet</Badge>
+              <span className="text-slate-600">
+                {daten.adresse} · Ablagefach „{daten.bucket}“
+              </span>
+            </>
+          ) : (
+            <Badge tone="warning">nicht eingerichtet</Badge>
+          )}
+        </div>
+
+        <p className="text-sm text-slate-600">
+          Hochgeladene Dateien – Fotos von der Baustelle, eingescannte Unterlagen – liegen in
+          Supabase Storage und nicht auf dem Webhosting. Ohne diese Einrichtung schlägt jeder Upload
+          fehl.
+        </p>
+
+        {!status.loading && !daten?.eingerichtet && (
+          <div className="text-xs text-slate-600">
+            <p>Diese Werte gehören in hPanel unter „Node.js“; danach dort neu starten:</p>
+            <pre className="mt-2 overflow-x-auto rounded border border-slate-200 bg-white p-2 leading-5">
+              {[
+                'SUPABASE_URL                https://<kennung>.supabase.co',
+                'SUPABASE_SERVICE_ROLE_KEY   der lange Schlüssel (service_role)',
+                'SUPABASE_BUCKET             dokumente        (freiwillig)',
+              ].join('\n')}
+            </pre>
+            <p className="mt-2">
+              Beides steht in Supabase unter Project Settings → API. Wichtig ist der Wert bei
+              <strong> service_role</strong>, nicht der bei <em>anon</em>: Der anon-Schlüssel
+              unterliegt den Zugriffsregeln der Datenbank und wird abgewiesen. Der
+              service_role-Schlüssel gehört ausschließlich auf den Server – niemals in eine Mail und
+              niemals in den Browser.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <Button
+            variant="secondary"
+            loading={pruefen.loading}
+            onClick={async () => {
+              const ergebnis = await pruefen.run();
+              if (ergebnis) setBefund(ergebnis);
+              status.reload();
+            }}
+          >
+            Ablage prüfen
+          </Button>
+        </div>
+
+        {pruefen.error && <ErrorState message={pruefen.error} />}
+
+        {befund && (
+          <div className={befund.ok ? 'meldung-erfolg' : 'meldung-hinweis'}>
+            <p>{befund.meldung}</p>
+            {befund.rat && <p className="mt-1 text-xs">{befund.rat}</p>}
+            {befund.schritte.length > 0 && (
+              <ul className="mt-2 list-disc pl-5 text-xs">
+                {befund.schritte.map((schritt) => (
+                  <li key={schritt}>{schritt}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

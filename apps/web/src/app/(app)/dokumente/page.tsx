@@ -5,12 +5,16 @@ import { useRef, useState } from 'react';
 import { ListPage } from '@/components/list-page';
 import { Badge, Button, Card, ErrorState, Field, PageHeader, Select } from '@/components/ui';
 import { api, apiBaseUrl, tokenStore } from '@/lib/api-client';
-import { useAction, useList } from '@/lib/hooks';
+import { useAction, useApi, useList } from '@/lib/hooks';
 import type { DocumentEntry } from '@/lib/types';
 
 export default function DocumentsPage() {
   const [category, setCategory] = useState('');
   const state = useList<DocumentEntry>('/documents', { category: category || undefined });
+
+  // Ohne eingerichtete Ablage scheitert jeder Upload. Das soll dastehen, bevor
+  // jemand eine Datei aussucht – nicht erst danach.
+  const ablage = useApi<{ eingerichtet: boolean }>('/ablage');
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadCategory, setUploadCategory] = useState('SONSTIGES');
@@ -59,6 +63,15 @@ export default function DocumentsPage() {
         subtitle="Ablage für Protokolle, Fotos und technische Unterlagen"
         actions={<Button onClick={() => setUploadOpen((open) => !open)}>Datei hochladen</Button>}
       />
+
+      {ablage.data && !ablage.data.eingerichtet && (
+        <p className="meldung-hinweis mb-6">
+          Die Dateiablage ist noch nicht eingerichtet – Hochladen schlägt deshalb fehl. Die
+          Zugangsdaten gehören in hPanel unter „Node.js“ (SUPABASE_URL und
+          SUPABASE_SERVICE_ROLE_KEY). Unter <strong>Einstellungen → Dateiablage</strong> steht, wo
+          die Werte zu finden sind, und dort läßt sich die Ablage prüfen.
+        </p>
+      )}
 
       {uploadOpen && (
         <Card title="Datei hochladen" className="mb-6">
