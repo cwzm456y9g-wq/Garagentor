@@ -118,6 +118,7 @@ export default function SettingsPage() {
             neuLaden={settings.reload}
           />
           <DatevKarte geladen={wertVon<DatevSettings>('datev') ?? {}} neuLaden={settings.reload} />
+          <SicherungKarte />
           <NummernkreiseKarte ranges={ranges} />
         </div>
       )}
@@ -1165,6 +1166,63 @@ function DatevKarte({ geladen, neuLaden }: { geladen: DatevSettings; neuLaden: (
       </div>
 
       <VorlagenLeiste settingKey="datev" bezeichnung="DATEV-Vorgaben" neuLaden={neuLaden} />
+    </Card>
+  );
+}
+
+/* Sicherung ------------------------------------------------------------ */
+
+/**
+ * Die eigene Sicherung zum Herunterladen.
+ *
+ * Der Anbieter sichert die Datenbank für sich – das hilft bei einem Ausfall
+ * seiner Technik, aber nicht bei einem versehentlich gelöschten Kunden, einem
+ * Anbieterwechsel oder einer Betriebsprüfung. Dafür braucht es eine Datei, die
+ * dem Betrieb gehört und die er selbst weglegen kann.
+ */
+function SicherungKarte() {
+  const [mitDokumenten, setMitDokumenten] = useState(false);
+  const laden = useAction(() =>
+    api.downloadFile('/exports/sicherung', { dokumente: mitDokumenten ? 'true' : 'false' }),
+  );
+
+  return (
+    <Card title="Sicherung">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Lädt alle Daten als ZIP herunter: je Tabelle eine CSV zum Ansehen in Excel und dieselbe
+          Tabelle als JSON zum Wiedereinspielen. Ein beiliegender Zettel erklärt, was darin steht.
+        </p>
+
+        <label className="flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-slate-300"
+            checked={mitDokumenten}
+            onChange={(event) => setMitDokumenten(event.target.checked)}
+          />
+          <span>
+            Hochgeladene Dateien mitsichern
+            <span className="block text-xs text-slate-500">
+              Fotos und eingescannte Unterlagen. Das dauert länger und macht die Datei deutlich
+              größer – Belege wie Rechnungen entstehen ohnehin neu aus den Daten, ein Foto von der
+              Baustelle nicht.
+            </span>
+          </span>
+        </label>
+
+        <p className="meldung-hinweis">
+          In der Datei stehen der vollständige Kundenstamm und Personaldaten. Sie gehört an einen
+          Ort, zu dem sonst niemand Zugang hat – nicht in einen Mailanhang. Kennwörter sind nicht
+          enthalten, auch nicht verschlüsselt.
+        </p>
+
+        {laden.error && <ErrorState message={laden.error} />}
+
+        <Button loading={laden.loading} onClick={() => void laden.run()}>
+          Sicherung herunterladen
+        </Button>
+      </div>
     </Card>
   );
 }
