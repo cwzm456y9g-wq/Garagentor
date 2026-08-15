@@ -14,6 +14,7 @@ import { aktuelleBenutzerId as currentUserId } from '@/server/kontext';
 import { paginate } from '@/server/anfrage';
 import { konfiguration, type Konfiguration } from '@/server/konfiguration';
 
+import { einrichtung } from './einrichtung';
 import type { MailLogQueryDto, SendMailDto } from './dto/mail.dto';
 import { smtpFehlerbild, type Fehlerbild } from './smtp-fehler';
 import {
@@ -133,6 +134,10 @@ export class MailService {
       absender: mail.from,
       antwortAn: mail.replyTo,
       kopieAn: mail.bcc,
+      // Welche Angaben am Server anliegen und was daran nicht zusammenpaßt.
+      // Ohne das sieht ein Tippfehler im Namen der Variablen genauso aus wie
+      // ein falsches Kennwort.
+      einrichtung: einrichtung(mail),
     };
   }
 
@@ -313,11 +318,38 @@ export class MailService {
    * genau die zwei Schritte, an denen es üblicherweise scheitert.
    */
   async pruefen(): Promise<{ ok: boolean; meldung: string; rat: string | null; dauerMs: number }> {
-    if (!this.eingerichtet()) {
+    const mail = this.einstellungenAusUmgebung;
+    const stand = einrichtung(mail);
+
+    // Erst die eigenen Angaben, dann das Netz. Fehlt eine Variable, wäre eine
+    // Zeitüberschreitung nach fünfzehn Sekunden die falsche Auskunft – die
+    // richtige ist, daß der Server sie nie bekommen hat.
+    if (!stand.vollstaendig) {
+      const fehlend = stand.angaben
+        .filter((angabe) => angabe.noetig && !angabe.gesetzt)
+        .map((angabe) => angabe.name);
+
       return {
         ok: false,
-        meldung: 'Es ist kein Postausgang hinterlegt.',
-        rat: 'MAIL_HOST und MAIL_FROM gehören in hPanel unter „Node.js" als Umgebungsvariablen.',
+        meldung: `Am Server fehlt: ${fehlend.join(', ')}.`,
+        rat:
+          'Diese Angaben gehören in hPanel unter „Node.js" als Umgebungsvariablen. Kommen sie ' +
+          'auch nach dem Eintragen hier nicht an, stimmt entweder die Schreibweise des Namens ' +
+          'nicht, oder die Anwendung wurde seitdem nicht neu gestartet – die Werte werden nur ' +
+          'beim Start gelesen.',
+        dauerMs: 0,
+      };
+    }
+
+    // Widersprüche, die man ohne Verbindung sieht, kommen vor der Verbindung.
+    if (stand.warnungen.length > 0) {
+      return {
+        ok: false,
+        meldung: stand.warnungen[0],
+        rat:
+          stand.warnungen.length > 1
+            ? stand.warnungen.slice(1).join(' ')
+            : 'Nach dem Ändern in hPanel die Anwendung dort neu starten.',
         dauerMs: 0,
       };
     }
@@ -325,7 +357,6 @@ export class MailService {
     const beginn = Date.now();
     try {
       await this.transport().verify();
-      const mail = this.einstellungenAusUmgebung;
 
       return {
         ok: true,

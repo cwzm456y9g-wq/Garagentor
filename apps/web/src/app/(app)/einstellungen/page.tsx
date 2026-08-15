@@ -885,6 +885,11 @@ interface MailStatusInfo {
   port: number;
   secure: boolean;
   absender: string | null;
+  einrichtung: {
+    vollstaendig: boolean;
+    angaben: Array<{ name: string; gesetzt: boolean; noetig: boolean; wert: string | null }>;
+    warnungen: string[];
+  };
 }
 
 interface Befund {
@@ -923,17 +928,63 @@ function Verbindungspruefung() {
         <span className="font-medium text-slate-700">Postausgang</span>
         {status.loading ? (
           <span className="text-slate-500">wird geprüft …</span>
-        ) : daten?.eingerichtet ? (
+        ) : daten?.einrichtung.vollstaendig ? (
           <>
-            <Badge tone="success">eingerichtet</Badge>
+            <Badge tone="success">vollständig</Badge>
             <span className="tabular text-slate-600">
               {daten.host}:{daten.port} · {daten.secure ? 'durchgehend verschlüsselt' : 'STARTTLS'}
             </span>
           </>
         ) : (
-          <Badge tone="warning">nicht eingerichtet</Badge>
+          <Badge tone="warning">
+            {daten?.eingerichtet ? 'unvollständig' : 'nicht eingerichtet'}
+          </Badge>
         )}
       </div>
+
+      {/*
+        Was am Server anliegt, Zeile für Zeile.
+
+        Der Grund ist eine wiederkehrende Sackgasse: Jemand trägt die Werte in
+        hPanel ein, und es geht trotzdem keine Mail hinaus. Von außen sieht ein
+        Tippfehler im Namen der Variablen genauso aus wie ein falsches
+        Kennwort – und ein vergessener Neustart auch. Diese Liste trennt das:
+        Was hier fehlt, hat den Server nie erreicht.
+      */}
+      {!status.loading && daten && (
+        <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+          <table className="w-full text-xs">
+            <tbody className="divide-y divide-slate-100">
+              {daten.einrichtung.angaben.map((angabe) => (
+                // Hervorgehoben wird nur, was fehlt und gebraucht wird – eine
+                // nicht gesetzte Blindkopie ist kein Mangel.
+                <tr
+                  key={angabe.name}
+                  className={angabe.gesetzt || !angabe.noetig ? undefined : 'bg-hinweis-flaeche'}
+                >
+                  <td className="px-3 py-1.5 font-medium text-slate-700">{angabe.name}</td>
+                  <td className="px-3 py-1.5 text-slate-600">
+                    {angabe.gesetzt ? (
+                      (angabe.wert ?? '•••••••• (gesetzt)')
+                    ) : (
+                      <span className="text-hinweis">
+                        {angabe.noetig ? 'fehlt' : 'nicht gesetzt (freiwillig)'}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!status.loading &&
+        daten?.einrichtung.warnungen.map((warnung) => (
+          <div key={warnung} className="meldung-hinweis">
+            {warnung}
+          </div>
+        ))}
 
       {!status.loading && !daten?.eingerichtet && (
         <div className="text-xs text-slate-600">
