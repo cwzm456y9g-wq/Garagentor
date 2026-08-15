@@ -34,13 +34,24 @@ import { invoicesService } from '@/server/dienste/invoices/invoices.service';
 
 const dezimal = (wert: number) => new Prisma.Decimal(wert);
 
+/** Ein Tag vor oder nach heute, damit der Aufbau nicht altert. */
+function tageVonHeute(tage: number): Date {
+  const tag = new Date();
+  tag.setDate(tag.getDate() + tage);
+  return tag;
+}
+
 function rechnung(felder: Record<string, unknown> = {}) {
   return {
     id: 'rechnung-1',
     invoiceNumber: 'RE-2026-0009',
     status: InvoiceStatus.OFFEN,
-    date: new Date('2026-08-01'),
-    dueDate: new Date('2026-08-15'),
+    // Bewußt gleitend statt fest: Mit einem festen Fälligkeitstag lief dieser
+    // Aufbau irgendwann in die Vergangenheit, die Rechnung galt als überfällig,
+    // und der Test schlug fehl, obwohl niemand etwas geändert hatte. Was hier
+    // geprüft wird, ist der Zahlungsstand – nicht der Kalender.
+    date: tageVonHeute(-14),
+    dueDate: tageVonHeute(14),
     grossTotal: dezimal(1000),
     deductedAmount: dezimal(0),
     paidAmount: dezimal(0),

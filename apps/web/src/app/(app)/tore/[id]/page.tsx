@@ -59,6 +59,20 @@ export default function DoorDetailPage({ params }: { params: Promise<{ id: strin
             <LinkButton href={`/serviceberichte/neu?tor=${data.id}`} variant="secondary">
               Servicebericht
             </LinkButton>
+            {/*
+              Gewicht und Höhe stehen an der Anlage – der Rechner soll sie
+              nicht noch einmal abfragen. Fehlt eines, bleibt sein Feld auf
+              dem Vorgabewert.
+            */}
+            <LinkButton
+              href={`/federn?${new URLSearchParams({
+                ...(data.weightKg ? { gewicht: String(data.weightKg) } : {}),
+                ...(data.heightMm ? { hoehe: String(data.heightMm) } : {}),
+              })}`}
+              variant="secondary"
+            >
+              Federrechner
+            </LinkButton>
             <LinkButton href={`/tore/${data.id}/bearbeiten`} variant="secondary">
               Bearbeiten
             </LinkButton>

@@ -42,6 +42,8 @@ export const NAVIGATION: NavGroup[] = [
       { label: 'Mängel', href: '/maengel' },
       { label: 'Serviceberichte', href: '/serviceberichte' },
       { label: 'Wartungsverträge', href: '/wartungsvertraege' },
+      // Kein Verzeichnis, sondern Werkzeug – steht deshalb am Ende der Gruppe.
+      { label: 'Federrechner', href: '/federn' },
     ],
   },
   {
