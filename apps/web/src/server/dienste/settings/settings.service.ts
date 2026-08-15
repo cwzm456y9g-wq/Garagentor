@@ -5,6 +5,7 @@ import { BadRequestException, NotFoundException } from '@/server/nest-ersatz';
 import { NUMBER_RANGE_DEFAULTS } from '@garagentor/shared';
 import { type Prisma } from '@prisma/client';
 
+import { federnSettingSchema } from './dto/settings.dto';
 import type { SavePresetDto, UpdateNumberRangeDto, UpsertSettingDto } from './dto/settings.dto';
 
 export class SettingsService {
@@ -148,6 +149,17 @@ export class SettingsService {
    * beliebiger Inhalt landen, deshalb die Kontrolle von Art und Größe.
    */
   private pruefeWert(key: string, value: unknown): void {
+    if (key === 'federn') {
+      const gelesen = federnSettingSchema.safeParse(value);
+      if (!gelesen.success) {
+        const [erster] = gelesen.error.issues;
+        throw new BadRequestException(
+          `Die Listen für den Federrechner sind nicht schlüssig: ${erster.path.join('.')} – ${erster.message}`,
+        );
+      }
+      return;
+    }
+
     if (key !== 'firma' || value === null || typeof value !== 'object') return;
 
     const logo = (value as { logo?: unknown }).logo;

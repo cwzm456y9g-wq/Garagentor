@@ -1,8 +1,9 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Badge, Button, Card, Field, Input, PageHeader, Select, Table } from '@/components/ui';
+import { api } from '@/lib/api-client';
 import {
   auslegen,
   baulaenge,
@@ -16,6 +17,7 @@ import {
   mittelAusInnen,
   moment,
   tragfaehigkeit,
+  werkstattlisten,
   wickelverhaeltnis,
   windungenAusLaenge,
   zugfestigkeit,
@@ -23,6 +25,7 @@ import {
   type Guete,
   type Ton,
   type Vorschlag,
+  type Werkstattlisten,
 } from '@/lib/federn';
 
 /**
@@ -64,8 +67,75 @@ const TON_WORT: Record<Ton, string> = {
   kritisch: 'zu klein',
 };
 
+/**
+ * Die Trommeln und Federreihen des Betriebs, mit den Vorgaben als Rückfall.
+ *
+ * Der Rechner soll auch dann arbeiten, wenn das Netz in der Halle nicht
+ * mitspielt oder noch niemand etwas hinterlegt hat: Ein Fehler beim Laden
+ * führt hier nicht zu einer leeren Auswahl, sondern zu den Vorgaben. Deshalb
+ * auch kein `useApi` – ein Ladefehler soll nicht auf der Seite stehen.
+ */
+function useWerkstattlisten(): Werkstattlisten {
+  const [listen, setListen] = useState<Werkstattlisten>(() => werkstattlisten(null));
+
+  useEffect(() => {
+    let aktuell = true;
+    api
+      .get<{ value: unknown }>('/settings/federn')
+      .then((eintrag) => {
+        if (aktuell) setListen(werkstattlisten(eintrag.value));
+      })
+      .catch(() => {
+        // Nicht hinterlegt oder nicht erreichbar – die Vorgaben bleiben stehen.
+      });
+    return () => {
+      aktuell = false;
+    };
+  }, []);
+
+  return listen;
+}
+
+/** Auswahl der Seiltrommel; setzt den Radius, den die Rechnung braucht. */
+function TrommelWahl({
+  trommeln,
+  radius,
+  setRadius,
+  kennung,
+}: {
+  trommeln: Werkstattlisten['trommeln'];
+  radius: string;
+  setRadius: (wert: string) => void;
+  kennung: string;
+}) {
+  // Die Auswahl wird aus dem Radius abgeleitet statt getrennt gehalten: So
+  // springt sie von selbst auf „eigener Wert“, sobald jemand die Zahl ändert.
+  const gewaehlt = trommeln.find(
+    (eintrag) => String(eintrag.radiusMm) === radius.replace(',', '.'),
+  );
+
+  return (
+    <Select
+      id={kennung}
+      value={gewaehlt?.name ?? ''}
+      onChange={(event) => {
+        const treffer = trommeln.find((eintrag) => eintrag.name === event.target.value);
+        if (treffer) setRadius(String(treffer.radiusMm));
+      }}
+    >
+      <option value="">eigener Wert</option>
+      {trommeln.map((eintrag) => (
+        <option key={eintrag.name} value={eintrag.name}>
+          {eintrag.name} · {eintrag.radiusMm} mm
+        </option>
+      ))}
+    </Select>
+  );
+}
+
 export default function FedernPage() {
   const [art, setArt] = useState<Betriebsart>('ausmessen');
+  const listen = useWerkstattlisten();
 
   return (
     <>
@@ -96,7 +166,7 @@ export default function FedernPage() {
         zu einer Suspense-Grenze – ohne sie bräche der Bau der Seite ab.
       */}
       <Suspense fallback={<div className="text-sm text-slate-500">wird geladen …</div>}>
-        {art === 'ausmessen' ? <Ausmessen /> : <Auslegen />}
+        {art === 'ausmessen' ? <Ausmessen listen={listen} /> : <Auslegen listen={listen} />}
       </Suspense>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -114,7 +184,7 @@ export default function FedernPage() {
  * Gerechnet wird nicht, um zu entscheiden, sondern um zu bestätigen – trägt
  * das, was der Lieferant anbietet, dasselbe Tor?
  */
-function Ausmessen() {
+function Ausmessen({ listen }: { listen: Werkstattlisten }) {
   const parameter = useSearchParams();
 
   // Vorgabe ist eine wirklich gebaute Feder: 6 mm Draht, 67 mm innen, 774 mm
@@ -379,6 +449,14 @@ function Ausmessen() {
                   onChange={(e) => setHoehe(e.target.value)}
                 />
               </Field>
+              <Field label="Seiltrommel" htmlFor="trommel-wahl">
+                <TrommelWahl
+                  kennung="trommel-wahl"
+                  trommeln={listen.trommeln}
+                  radius={trommel}
+                  setRadius={setTrommel}
+                />
+              </Field>
               <Field label="Trommelradius" htmlFor="trommel" hint="in mm, am Seilgrund gemessen">
                 <Input
                   id="trommel"
@@ -489,7 +567,7 @@ function Zeile({ name, wert }: { name: string; wert: string }) {
  * Frage kommt, entscheidet nicht die Rechnung allein, sondern der Platz auf
  * der Welle und das, was der Lieferant führt.
  */
-function Auslegen() {
+function Auslegen({ listen }: { listen: Werkstattlisten }) {
   const parameter = useSearchParams();
 
   const [gewicht, setGewicht] = useState(parameter.get('gewicht') ?? '100');
@@ -500,6 +578,11 @@ function Auslegen() {
   const [reserve, setReserve] = useState('0,75');
   const [maxLaenge, setMaxLaenge] = useState('');
   const [guete, setGuete] = useState<Guete>('DH');
+
+  // Wie bei der Trommel aus dem Wert abgeleitet, nicht getrennt gehalten.
+  const reihe = listen.reihen.find(
+    (eintrag) => String(eintrag.innenMm) === innen.replace(',', '.'),
+  );
 
   const vorschlaege = useMemo(() => {
     const g = zahl(gewicht);
@@ -517,9 +600,10 @@ function Auslegen() {
       innenMm: i,
       reserveUmdrehungen: zahl(reserve) ?? 0,
       ...(zahl(maxLaenge) ? { maxLaengeMm: zahl(maxLaenge)! } : {}),
+      ...(reihe && reihe.drahtstaerken.length > 0 ? { drahtstaerken: reihe.drahtstaerken } : {}),
       guete,
     });
-  }, [gewicht, hoehe, trommel, anzahl, innen, reserve, maxLaenge, guete]);
+  }, [gewicht, hoehe, trommel, anzahl, innen, reserve, maxLaenge, guete, reihe]);
 
   return (
     <div className="space-y-6">
@@ -541,7 +625,15 @@ function Auslegen() {
               onChange={(e) => setHoehe(e.target.value)}
             />
           </Field>
-          <Field label="Trommelradius" htmlFor="a-trommel" hint="in mm">
+          <Field label="Seiltrommel" htmlFor="a-trommel-wahl">
+            <TrommelWahl
+              kennung="a-trommel-wahl"
+              trommeln={listen.trommeln}
+              radius={trommel}
+              setRadius={setTrommel}
+            />
+          </Field>
+          <Field label="Trommelradius" htmlFor="a-trommel" hint="in mm, am Seilgrund">
             <Input
               id="a-trommel"
               inputMode="decimal"
@@ -556,6 +648,33 @@ function Auslegen() {
               value={anzahl}
               onChange={(e) => setAnzahl(e.target.value)}
             />
+          </Field>
+          <Field
+            label="Federreihe"
+            htmlFor="a-reihe"
+            hint={
+              reihe && reihe.drahtstaerken.length > 0
+                ? `nur ${reihe.drahtstaerken.length} geführte Stärken`
+                : 'alle handelsüblichen Stärken'
+            }
+          >
+            <Select
+              id="a-reihe"
+              value={reihe?.name ?? ''}
+              onChange={(event) => {
+                const treffer = listen.reihen.find(
+                  (eintrag) => eintrag.name === event.target.value,
+                );
+                if (treffer) setInnen(String(treffer.innenMm));
+              }}
+            >
+              <option value="">eigener Wert</option>
+              {listen.reihen.map((eintrag) => (
+                <option key={eintrag.name} value={eintrag.name}>
+                  {eintrag.name} · {eintrag.innenMm} mm
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Innendurchmesser" htmlFor="a-innen" hint="in mm, durch die Welle bestimmt">
             <Input

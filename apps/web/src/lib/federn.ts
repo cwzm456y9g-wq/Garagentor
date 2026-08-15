@@ -39,6 +39,106 @@ export const DRAHTSTAERKEN = [
   3.0, 3.2, 3.5, 3.8, 4.0, 4.2, 4.5, 4.8, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
 ];
 
+/* Was der Betrieb führt ------------------------------------------------- */
+
+/**
+ * Eine Seiltrommel.
+ *
+ * Der Radius ist der einzige Wert, der in die Rechnung eingeht – und zwar
+ * **am Seilgrund** gemessen, nicht am Flansch. Zwischen beiden liegen bei
+ * einer üblichen Trommel gut zwei Zentimeter, und das sind über 40 % Irrtum
+ * im Haltemoment.
+ */
+export interface Trommel {
+  name: string;
+  radiusMm: number;
+}
+
+/**
+ * Eine Federreihe, wie sie ein Lieferant führt.
+ *
+ * Der Innendurchmesser ist meist durch die Welle vorgegeben. Sind
+ * Drahtstärken hinterlegt, rechnet die Auslegung nur mit diesen – dann stehen
+ * in der Vorschlagsliste nur Federn, die es auch zu kaufen gibt.
+ */
+export interface Federreihe {
+  name: string;
+  innenMm: number;
+  /** Leer heißt: alle handelsüblichen Stärken. */
+  drahtstaerken: number[];
+}
+
+/**
+ * Vorgaben zum Überschreiben.
+ *
+ * Bewußt keine Herstellerbezeichnungen: Welche Trommel welchen Seilradius hat,
+ * steht im Datenblatt des Herstellers oder läßt sich einmal nachmessen –
+ * erfundene Typennummern wären schlimmer als keine. Der Betrieb trägt hier
+ * ein, was er führt.
+ */
+export const TROMMELN_VORGABE: Trommel[] = [
+  { name: 'Standard-Lift, klein', radiusMm: 32 },
+  { name: 'Standard-Lift, mittel', radiusMm: 46 },
+  { name: 'Standard-Lift, groß', radiusMm: 56 },
+  { name: 'Industrietor', radiusMm: 76 },
+];
+
+export const REIHEN_VORGABE: Federreihe[] = [
+  { name: 'Ø 32 mm', innenMm: 32, drahtstaerken: [] },
+  { name: 'Ø 42 mm', innenMm: 42, drahtstaerken: [] },
+  { name: 'Ø 51 mm (2″)', innenMm: 50.8, drahtstaerken: [] },
+  { name: 'Ø 67 mm (2⅝″)', innenMm: 67, drahtstaerken: [] },
+  { name: 'Ø 95 mm (3¾″)', innenMm: 95.25, drahtstaerken: [] },
+];
+
+export interface Werkstattlisten {
+  trommeln: Trommel[];
+  reihen: Federreihe[];
+}
+
+const positiv = (wert: unknown): wert is number =>
+  typeof wert === 'number' && Number.isFinite(wert) && wert > 0;
+
+const benannt = (wert: unknown): wert is string => typeof wert === 'string' && wert.trim() !== '';
+
+/**
+ * Liest die hinterlegten Listen und wirft weg, was unbrauchbar ist.
+ *
+ * Die Einstellung ist freies JSON. Ein halb gefüllter oder von Hand
+ * verunglückter Eintrag darf den Rechner nicht lahmlegen – wer draußen am Tor
+ * steht, ist mit einer leeren Auswahl schlechter bedient als mit den Vorgaben.
+ */
+export function werkstattlisten(wert: unknown): Werkstattlisten {
+  const roh = (wert ?? {}) as { trommeln?: unknown; reihen?: unknown };
+
+  const trommeln = (Array.isArray(roh.trommeln) ? roh.trommeln : [])
+    .filter(
+      (eintrag): eintrag is Trommel =>
+        !!eintrag && benannt((eintrag as Trommel).name) && positiv((eintrag as Trommel).radiusMm),
+    )
+    .map((eintrag) => ({ name: eintrag.name.trim(), radiusMm: eintrag.radiusMm }));
+
+  const reihen = (Array.isArray(roh.reihen) ? roh.reihen : [])
+    .filter(
+      (eintrag): eintrag is Federreihe =>
+        !!eintrag &&
+        benannt((eintrag as Federreihe).name) &&
+        positiv((eintrag as Federreihe).innenMm),
+    )
+    .map((eintrag) => ({
+      name: eintrag.name.trim(),
+      innenMm: eintrag.innenMm,
+      drahtstaerken: (Array.isArray(eintrag.drahtstaerken) ? eintrag.drahtstaerken : [])
+        .filter(positiv)
+        .sort((a, b) => a - b),
+    }));
+
+  return {
+    trommeln: trommeln.length > 0 ? trommeln : TROMMELN_VORGABE,
+    reihen: reihen.length > 0 ? reihen : REIHEN_VORGABE,
+  };
+}
+
 /** Eine Feder, soweit sie für die Rechnung zählt. */
 export interface Feder {
   /** Drahtstärke in mm. */
@@ -104,8 +204,7 @@ export function wickelverhaeltnis(feder: Feder): number {
  * an ihr hängt.
  */
 export function federrate(feder: Feder): number {
-  const nmm =
-    (Math.PI * E_MODUL * feder.drahtMm ** 4) / (32 * feder.mittelMm * feder.windungen);
+  const nmm = (Math.PI * E_MODUL * feder.drahtMm ** 4) / (32 * feder.mittelMm * feder.windungen);
   return nmm / 1000;
 }
 
@@ -336,6 +435,11 @@ export interface Vorgabe {
   reserveUmdrehungen: number;
   /** Platz auf der Welle je Feder in mm; ohne Angabe ohne Begrenzung. */
   maxLaengeMm?: number;
+  /**
+   * Drahtstärken, die gerechnet werden sollen. Ohne Angabe alle
+   * handelsüblichen – mit Angabe nur, was die gewählte Reihe führt.
+   */
+  drahtstaerken?: number[];
   guete: Guete;
 }
 
@@ -370,10 +474,16 @@ export function auslegen(vorgabe: Vorgabe): Vorschlag[] {
   const spannUmdrehungen =
     hubUmdrehungen(vorgabe.hoeheMm, vorgabe.trommelRadiusMm) + vorgabe.reserveUmdrehungen;
 
-  const momentJeFeder = haltemoment(vorgabe.gewichtKg, vorgabe.trommelRadiusMm) / vorgabe.anzahlFedern;
+  const momentJeFeder =
+    haltemoment(vorgabe.gewichtKg, vorgabe.trommelRadiusMm) / vorgabe.anzahlFedern;
   const rateSoll = momentJeFeder / spannUmdrehungen; // Nm je Umdrehung
 
-  return DRAHTSTAERKEN.map((drahtMm) => {
+  const staerken =
+    vorgabe.drahtstaerken && vorgabe.drahtstaerken.length > 0
+      ? [...vorgabe.drahtstaerken].sort((a, b) => a - b)
+      : DRAHTSTAERKEN;
+
+  return staerken.map((drahtMm) => {
     const mittelMm = mittelAusInnen(vorgabe.innenMm, drahtMm);
 
     // Windungszahl aus der geforderten Rate – dann auf ganze Windungen runden
@@ -394,7 +504,12 @@ export function auslegen(vorgabe: Vorgabe): Vorschlag[] {
       rateNm: federrate(feder),
       spannUmdrehungen,
       momentNm: moment(feder, spannUmdrehungen),
-      traegtKg: tragfaehigkeit(feder, spannUmdrehungen, vorgabe.trommelRadiusMm, vorgabe.anzahlFedern),
+      traegtKg: tragfaehigkeit(
+        feder,
+        spannUmdrehungen,
+        vorgabe.trommelRadiusMm,
+        vorgabe.anzahlFedern,
+      ),
       spannungNmm2: spannung.korrigiert,
       zugfestigkeitNmm2: festigkeit,
       beurteilung: beurteilen(spannung.korrigiert, festigkeit),

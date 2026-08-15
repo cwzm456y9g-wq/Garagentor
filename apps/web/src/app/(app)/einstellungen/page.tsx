@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -27,6 +27,7 @@ import {
 } from '@garagentor/shared';
 import { api } from '@/lib/api-client';
 import { useAction, useApi } from '@/lib/hooks';
+import { werkstattlisten, type Federreihe, type Trommel, type Werkstattlisten } from '@/lib/federn';
 import type {
   CompanySettings,
   DatevSettings,
@@ -118,6 +119,7 @@ export default function SettingsPage() {
             neuLaden={settings.reload}
           />
           <DatevKarte geladen={wertVon<DatevSettings>('datev') ?? {}} neuLaden={settings.reload} />
+          <FedernKarte geladen={wertVon<unknown>('federn')} neuLaden={settings.reload} />
           <AblageKarte />
           <SicherungKarte />
           <NummernkreiseKarte ranges={ranges} />
@@ -1469,6 +1471,201 @@ function SicherungKarte() {
   );
 }
 
+/* Federrechner --------------------------------------------------------- */
+
+/**
+ * Trommeln und Federreihen, die der Betrieb führt.
+ *
+ * Der Federrechner soll keine Zahlen abfragen, die ohnehin immer dieselben
+ * sind. Welche das sind, weiß aber nur der Betrieb – deshalb steht die Liste
+ * hier und nicht im Programm. Wer einen Lieferanten wechselt, ändert sie
+ * selbst.
+ *
+ * Sind keine Listen hinterlegt, arbeitet der Rechner mit Vorgaben weiter.
+ */
+function FedernKarte({ geladen, neuLaden }: { geladen: unknown; neuLaden: () => void }) {
+  const vorhanden = useMemo(() => werkstattlisten(geladen), [geladen]);
+  const [entwurf, setEntwurf] = useState<Werkstattlisten | null>(null);
+  const wert = entwurf ?? vorhanden;
+  const geaendert = entwurf !== null && JSON.stringify(entwurf) !== JSON.stringify(vorhanden);
+
+  const speichern = useAction((body: Werkstattlisten) =>
+    api.put('/settings/federn', { value: body, category: 'toranlagen' }),
+  );
+
+  const setzeTrommel = (index: number, felder: Partial<Trommel>) =>
+    setEntwurf({
+      ...wert,
+      trommeln: wert.trommeln.map((eintrag, i) =>
+        i === index ? { ...eintrag, ...felder } : eintrag,
+      ),
+    });
+
+  const setzeReihe = (index: number, felder: Partial<Federreihe>) =>
+    setEntwurf({
+      ...wert,
+      reihen: wert.reihen.map((eintrag, i) => (i === index ? { ...eintrag, ...felder } : eintrag)),
+    });
+
+  return (
+    <Card
+      title="Federrechner"
+      actions={
+        <Button
+          size="sm"
+          loading={speichern.loading}
+          disabled={!geaendert}
+          onClick={async () => {
+            if (await speichern.run(wert)) {
+              setEntwurf(null);
+              neuLaden();
+            }
+          }}
+        >
+          Speichern
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        {speichern.error && <ErrorState message={speichern.error} />}
+
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-800">Seiltrommeln</h3>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                setEntwurf({ ...wert, trommeln: [...wert.trommeln, { name: '', radiusMm: 46 }] })
+              }
+            >
+              Trommel hinzufügen
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {wert.trommeln.map((trommel, index) => (
+              <div key={index} className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label={`Bezeichnung der Trommel ${index + 1}`}
+                  className="min-w-40 flex-1"
+                  placeholder="Bezeichnung, wie Sie sie bestellen"
+                  value={trommel.name}
+                  onChange={(event) => setzeTrommel(index, { name: event.target.value })}
+                />
+                <Input
+                  aria-label={`Seilradius der Trommel ${index + 1}`}
+                  className="w-28"
+                  inputMode="decimal"
+                  value={String(trommel.radiusMm)}
+                  onChange={(event) =>
+                    setzeTrommel(index, { radiusMm: Number(event.target.value.replace(',', '.')) })
+                  }
+                />
+                <span className="text-xs text-slate-500">mm Radius</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    setEntwurf({
+                      ...wert,
+                      trommeln: wert.trommeln.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  Entfernen
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-2 text-xs text-slate-500">
+            Der Radius wird <strong>am Seilgrund</strong> gemessen, nicht am Flansch. Zwischen
+            beiden liegen bei einer üblichen Trommel gut zwei Zentimeter – das sind über 40 % Irrtum
+            im Haltemoment.
+          </p>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-800">Federreihen</h3>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                setEntwurf({
+                  ...wert,
+                  reihen: [...wert.reihen, { name: '', innenMm: 67, drahtstaerken: [] }],
+                })
+              }
+            >
+              Reihe hinzufügen
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {wert.reihen.map((reihe, index) => (
+              <div key={index} className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label={`Bezeichnung der Federreihe ${index + 1}`}
+                  className="min-w-36 flex-1"
+                  placeholder="Bezeichnung"
+                  value={reihe.name}
+                  onChange={(event) => setzeReihe(index, { name: event.target.value })}
+                />
+                <Input
+                  aria-label={`Innendurchmesser der Federreihe ${index + 1}`}
+                  className="w-24"
+                  inputMode="decimal"
+                  value={String(reihe.innenMm)}
+                  onChange={(event) =>
+                    setzeReihe(index, { innenMm: Number(event.target.value.replace(',', '.')) })
+                  }
+                />
+                <span className="text-xs text-slate-500">mm innen</span>
+                <Input
+                  aria-label={`Drahtstärken der Federreihe ${index + 1}`}
+                  className="min-w-44 flex-1"
+                  placeholder="Drahtstärken, z. B. 4; 4,5; 5 – leer heißt alle"
+                  value={reihe.drahtstaerken
+                    .map((wert) => String(wert).replace('.', ','))
+                    .join('; ')}
+                  onChange={(event) =>
+                    setzeReihe(index, {
+                      // Nur Semikolon und Leerzeichen trennen – das Komma ist
+                      // hier das Dezimalzeichen, „4,5" ist eine Stärke und
+                      // nicht zwei.
+                      drahtstaerken: event.target.value
+                        .split(/[;\s]+/)
+                        .map((stueck) => Number(stueck.replace(',', '.')))
+                        .filter((zahl) => Number.isFinite(zahl) && zahl > 0),
+                    })
+                  }
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    setEntwurf({ ...wert, reihen: wert.reihen.filter((_, i) => i !== index) })
+                  }
+                >
+                  Entfernen
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-2 text-xs text-slate-500">
+            Sind Drahtstärken hinterlegt, schlägt die Auslegung nur diese vor – dann stehen in der
+            Liste nur Federn, die es auch zu kaufen gibt. Das Feld nimmt Komma wie Punkt; getrennt
+            wird mit Semikolon oder Leerzeichen.
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /* Zurücksetzen --------------------------------------------------------- */
 
 interface Umfang {
@@ -1577,7 +1774,9 @@ function ZuruecksetzenKarte({ onFertig }: { onFertig: () => void }) {
   );
 
   const daten = vorschau.data;
-  const zeilen = daten ? UMFANG_ZEILEN.filter(([schluessel]) => daten.loeschen[schluessel] > 0) : [];
+  const zeilen = daten
+    ? UMFANG_ZEILEN.filter(([schluessel]) => daten.loeschen[schluessel] > 0)
+    : [];
   const summe = zeilen.reduce((wert, [schluessel]) => wert + (daten?.loeschen[schluessel] ?? 0), 0);
   const wortStimmt = daten ? wort.trim() === daten.bestaetigungswort : false;
 
@@ -1637,9 +1836,12 @@ function ZuruecksetzenKarte({ onFertig }: { onFertig: () => void }) {
               {(daten.unberuehrt.termine > 0 || daten.unberuehrt.projekte > 0) && (
                 <>
                   {' '}
-                  Ebenfalls unberührt: {zahlwort(daten.unberuehrt.termine, 'Termin', 'Termine')} und{' '}
-                  {zahlwort(daten.unberuehrt.projekte, 'Projekt', 'Projekte')} ohne Kundenbezug –
-                  die gehören zu keinem Vorgang.
+                  Ebenfalls unberührt: {zahlwort(
+                    daten.unberuehrt.termine,
+                    'Termin',
+                    'Termine',
+                  )} und {zahlwort(daten.unberuehrt.projekte, 'Projekt', 'Projekte')} ohne
+                  Kundenbezug – die gehören zu keinem Vorgang.
                 </>
               )}
               {daten.bestandskorrekturen > 0 && (

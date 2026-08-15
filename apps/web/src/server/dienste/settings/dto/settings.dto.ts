@@ -27,6 +27,41 @@ export const savePresetSchema = z
 
 export type SavePresetDto = z.infer<typeof savePresetSchema>;
 
+/**
+ * Trommeln und Federreihen des Betriebs.
+ *
+ * Der Federrechner liest diese Listen. Er verträgt zwar auch unbrauchbare
+ * Einträge – er wirft sie beim Lesen weg –, aber es ist besser, sie gar nicht
+ * erst hereinzulassen: Ein Radius von null käme sonst als Division durch null
+ * zurück, und ein Tippfehler fiele erst am Tor auf.
+ */
+export const federnSettingSchema = z
+  .object({
+    trommeln: z
+      .array(
+        z
+          .object({
+            name: z.string().min(1).max(80),
+            /** Am Seilgrund gemessen, nicht am Flansch. */
+            radiusMm: z.number().positive().max(500),
+          })
+          .strict(),
+      )
+      .max(50),
+    reihen: z
+      .array(
+        z
+          .object({
+            name: z.string().min(1).max(80),
+            innenMm: z.number().positive().max(500),
+            drahtstaerken: z.array(z.number().positive().max(50)).max(60),
+          })
+          .strict(),
+      )
+      .max(50),
+  })
+  .strict();
+
 export const updateNumberRangeSchema = z
   .object({
     /** Präfix, z. B. „RE-". */

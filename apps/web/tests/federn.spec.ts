@@ -11,8 +11,11 @@ import {
   mittelAusAussen,
   mittelAusInnen,
   moment,
+  REIHEN_VORGABE,
   spannungsbeiwert,
   tragfaehigkeit,
+  TROMMELN_VORGABE,
+  werkstattlisten,
   wickelverhaeltnis,
   windungenAusLaenge,
   zugfestigkeit,
@@ -338,5 +341,96 @@ describe('Torsionsfedern', () => {
     it('setzt beim Elastizitätsmodul den Wert für Federstahl an', () => {
       expect(E_MODUL).toBe(206_000);
     });
+
+    it('rechnet nur die Stärken, die die gewählte Reihe führt', () => {
+      const eng = auslegen({ ...vorgabe, drahtstaerken: [5, 6, 7] });
+
+      expect(eng.map((v) => v.drahtMm)).toEqual([5, 6, 7]);
+    });
+
+    it('bringt eine unsortierte Stärkenliste in Ordnung', () => {
+      const eng = auslegen({ ...vorgabe, drahtstaerken: [7, 5, 6] });
+
+      expect(eng.map((v) => v.drahtMm)).toEqual([5, 6, 7]);
+    });
+
+    it('nimmt bei leerer Stärkenliste wieder alle handelsüblichen', () => {
+      expect(auslegen({ ...vorgabe, drahtstaerken: [] })).toHaveLength(15);
+    });
+
+    it('rechnet eine geführte Sonderstärke mit', () => {
+      // Die Reihe des Lieferanten muß nicht auf die eigene Liste passen.
+      const [einziger] = auslegen({ ...vorgabe, drahtstaerken: [5.6] });
+
+      expect(einziger.drahtMm).toBe(5.6);
+      expect(einziger.traegtKg).toBeGreaterThan(vorgabe.gewichtKg * 0.94);
+    });
+  });
+});
+
+describe('Trommeln und Federreihen des Betriebs', () => {
+  it('nimmt hinterlegte Listen an', () => {
+    const listen = werkstattlisten({
+      trommeln: [{ name: 'Halle 2', radiusMm: 52 }],
+      reihen: [{ name: 'Reihe A', innenMm: 67, drahtstaerken: [5, 6] }],
+    });
+
+    expect(listen.trommeln).toEqual([{ name: 'Halle 2', radiusMm: 52 }]);
+    expect(listen.reihen[0].drahtstaerken).toEqual([5, 6]);
+  });
+
+  it('fällt ohne Einstellung auf die Vorgaben zurück', () => {
+    // Wer den Rechner zum ersten Mal öffnet, soll etwas zur Auswahl haben.
+    expect(werkstattlisten(null).trommeln).toEqual(TROMMELN_VORGABE);
+    expect(werkstattlisten(undefined).reihen).toEqual(REIHEN_VORGABE);
+  });
+
+  it('fällt auch bei Unsinn auf die Vorgaben zurück', () => {
+    // Die Einstellung ist freies JSON. Eine leere Auswahl am Tor wäre
+    // schlimmer als eine mit Vorgaben.
+    expect(werkstattlisten('kaputt').trommeln).toEqual(TROMMELN_VORGABE);
+    expect(werkstattlisten({ trommeln: 'nein' }).trommeln).toEqual(TROMMELN_VORGABE);
+  });
+
+  it('wirft einzelne unbrauchbare Einträge weg, behält die guten', () => {
+    const listen = werkstattlisten({
+      trommeln: [
+        { name: 'gut', radiusMm: 46 },
+        { name: '', radiusMm: 46 },
+        { name: 'ohne Radius' },
+        { name: 'Radius null', radiusMm: 0 },
+        null,
+      ],
+      reihen: [],
+    });
+
+    expect(listen.trommeln).toEqual([{ name: 'gut', radiusMm: 46 }]);
+  });
+
+  it('sortiert die Drahtstärken und wirft unbrauchbare heraus', () => {
+    const listen = werkstattlisten({
+      trommeln: [],
+      reihen: [{ name: 'Reihe', innenMm: 67, drahtstaerken: [6, 'x', -1, 5, 0] }],
+    });
+
+    expect(listen.reihen[0].drahtstaerken).toEqual([5, 6]);
+  });
+
+  it('nimmt eine Reihe ohne Stärkenangabe an', () => {
+    const listen = werkstattlisten({
+      trommeln: [],
+      reihen: [{ name: 'Reihe', innenMm: 67 }],
+    });
+
+    expect(listen.reihen[0].drahtstaerken).toEqual([]);
+  });
+
+  it('räumt Leerzeichen aus den Bezeichnungen', () => {
+    const listen = werkstattlisten({
+      trommeln: [{ name: '  Halle 2  ', radiusMm: 52 }],
+      reihen: [],
+    });
+
+    expect(listen.trommeln[0].name).toBe('Halle 2');
   });
 });
