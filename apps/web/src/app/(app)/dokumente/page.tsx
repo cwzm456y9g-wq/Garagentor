@@ -2,6 +2,7 @@
 
 import { documentCategoryLabels, formatDateTime, formatNumber } from '@garagentor/shared';
 import { useRef, useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, Button, Card, ErrorState, Field, PageHeader, Select } from '@/components/ui';
 import { api, apiBaseUrl, tokenStore } from '@/lib/api-client';
@@ -175,10 +176,29 @@ export default function DocumentsPage() {
             <td className="tabular whitespace-nowrap text-right text-slate-600">
               {formatNumber(document_.size / 1024, 0)} kB
             </td>
-            <td className="text-right">
+            <td className="flex justify-end gap-2 text-right whitespace-nowrap">
               <Button size="sm" variant="secondary" onClick={() => void download(document_)}>
                 Herunterladen
               </Button>
+              {/*
+                Hochladen ging bisher, wieder loswerden nicht – ein
+                versehentlich hochgeladenes Foto blieb für immer stehen. Die
+                Datei verschwindet dabei auch aus der Ablage, nicht nur der
+                Eintrag.
+              */}
+              <EntfernenKnopf
+                klein
+                pfad={`/documents/${document_.id}`}
+                titel="Datei löschen"
+                beschreibung={
+                  <>
+                    <strong>{document_.originalName}</strong> wird gelöscht – der Eintrag und die
+                    Datei in der Ablage. Belege wie Rechnungen oder Protokolle entstehen bei Bedarf
+                    neu aus den Daten; ein Foto von der Baustelle nicht.
+                  </>
+                }
+                onEntfernt={() => state.reload()}
+              />
             </td>
           </>
         )}

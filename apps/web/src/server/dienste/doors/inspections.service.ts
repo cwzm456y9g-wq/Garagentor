@@ -371,6 +371,77 @@ export class InspectionsService {
 
   /* Interna ------------------------------------------------------------ */
 
+  /**
+   * Entfernt ein Prüfprotokoll – solange es noch nicht abgeschlossen ist.
+   *
+   * Die Grenze ist keine Bequemlichkeit, sondern der Zweck der Sache: Ein
+   * abgeschlossenes Protokoll ist der Nachweis, daß geprüft wurde. Es zu
+   * löschen hieße, den Nachweis zu beseitigen – und genau danach wird im
+   * Schadensfall gefragt. Ein angefangenes Protokoll ist dagegen noch kein
+   * Nachweis, sondern ein Zwischenstand; wer versehentlich eines an der
+   * falschen Anlage begonnen hat, muß es wieder loswerden können.
+   *
+   * Mängel und Prüfpunkte hängen daran und gehen mit.
+   */
+  async remove(id: string) {
+    const inspection = await prisma.inspection.findUnique({
+      where: { id },
+      select: { id: true, inspectionNumber: true, completedAt: true },
+    });
+    if (!inspection) {
+      throw new NotFoundException('Das Prüfprotokoll wurde nicht gefunden.');
+    }
+    if (inspection.completedAt) {
+      throw new ConflictException(
+        `Das Protokoll ${inspection.inspectionNumber} ist abgeschlossen und damit der Nachweis ` +
+          'der Prüfung. Es kann nicht gelöscht werden.',
+      );
+    }
+
+    await prisma.inspection.delete({ where: { id } });
+    return { deleted: true, id };
+  }
+
+  /**
+   * Entfernt einen Mangel.
+   *
+   * Erlaubt bleibt das nur, solange der Mangel offen ist und nicht aus einem
+   * abgeschlossenen Protokoll stammt. Ein behobener Mangel ist die
+   * Dokumentation einer Instandsetzung, ein Mangel aus einem
+   * abgeschlossenen Protokoll gehört zu dessen Befund – beides ist kein
+   * Eintrag, den man wegräumt, sondern Teil der Anlagenhistorie. Was bleibt,
+   * ist der versehentlich angelegte Eintrag, und der soll weg können.
+   */
+  async removeDefect(id: string) {
+    const defect = await prisma.defect.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        title: true,
+        inspection: { select: { inspectionNumber: true, completedAt: true } },
+      },
+    });
+    if (!defect) {
+      throw new NotFoundException('Der Mangel wurde nicht gefunden.');
+    }
+    if (defect.status !== DefectStatus.OFFEN) {
+      throw new ConflictException(
+        'Nur ein offener Mangel kann gelöscht werden. Ein behobener Eintrag dokumentiert die ' +
+          'Instandsetzung und bleibt in der Anlagenhistorie.',
+      );
+    }
+    if (defect.inspection?.completedAt) {
+      throw new ConflictException(
+        `Der Mangel stammt aus dem abgeschlossenen Protokoll ${defect.inspection.inspectionNumber} ` +
+          'und gehört zu dessen Befund. Er kann dort nicht herausgelöst werden.',
+      );
+    }
+
+    await prisma.defect.delete({ where: { id } });
+    return { deleted: true, id };
+  }
+
   private async requireOpen(id: string) {
     const inspection = await prisma.inspection.findUnique({ where: { id } });
     if (!inspection) {

@@ -8,6 +8,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, Button, PageHeader, Select } from '@/components/ui';
 import { api } from '@/lib/api-client';
@@ -138,7 +139,7 @@ export default function DefectsPage() {
               <td>
                 <Badge tone={statusState.tone}>{statusState.label}</Badge>
               </td>
-              <td className="text-right">
+              <td className="flex justify-end gap-2 text-right whitespace-nowrap">
                 {defect.status !== 'BEHOBEN' && (
                   <Button
                     size="sm"
@@ -149,6 +150,27 @@ export default function DefectsPage() {
                   >
                     Behoben
                   </Button>
+                )}
+                {/*
+                  Nur offene Mängel. Ein behobener dokumentiert eine
+                  Instandsetzung und bleibt in der Anlagenhistorie; der Server
+                  weist ihn ohnehin ab.
+                */}
+                {defect.status === 'OFFEN' && (
+                  <EntfernenKnopf
+                    klein
+                    pfad={`/defects/${defect.id}`}
+                    titel="Mangel löschen"
+                    beschreibung={
+                      <>
+                        <strong>{defect.title}</strong> wird aus der Anlage gelöscht. Gedacht für
+                        einen Eintrag, der versehentlich angelegt wurde – ein tatsächlich
+                        vorhandener Mangel gehört behoben und nicht entfernt. Mängel aus einem
+                        abgeschlossenen Prüfprotokoll lassen sich nicht löschen.
+                      </>
+                    }
+                    onEntfernt={() => state.reload()}
+                  />
                 )}
               </td>
             </>

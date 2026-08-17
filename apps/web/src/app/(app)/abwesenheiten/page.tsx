@@ -31,6 +31,9 @@ export default function AbsencesPage() {
   const [reason, setReason] = useState('');
 
   const create = useAction((body: Record<string, unknown>) => api.post('/absences', body));
+  // Serverseitig gab es das Stornieren längst – nur keinen Knopf dafür. Ein
+  // versehentlich eingetragener Urlaub ließ sich deshalb nicht zurücknehmen.
+  const storno = useAction((id: string) => api.post(`/absences/${id}/cancel`));
   const decide = useAction((input: { id: string; status: 'GENEHMIGT' | 'ABGELEHNT' }) =>
     api.post(`/absences/${input.id}/decide`, { status: input.status }),
   );
@@ -203,6 +206,17 @@ export default function AbsencesPage() {
                       Ablehnen
                     </Button>
                   </span>
+                )}
+                {absence.status !== 'STORNIERT' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      if (await storno.run(absence.id)) state.reload();
+                    }}
+                  >
+                    Stornieren
+                  </Button>
                 )}
               </td>
             </>

@@ -3,6 +3,7 @@
 import { customerDisplayName, formatDate, inspectionTypeLabels } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { EntfernenKnopf } from '@/components/entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -67,6 +68,7 @@ export default function InspectionsPage() {
             <th>Prüfende Person</th>
             <th>Ergebnis</th>
             <th className="text-right">Mängel</th>
+            <th />
           </>
         }
         renderRow={(inspection) => {
@@ -106,6 +108,31 @@ export default function InspectionsPage() {
                 )}
               </td>
               <td className="tabular text-right">{inspection._count?.defects ?? 0}</td>
+              <td className="text-right whitespace-nowrap">
+                {/*
+                  Nur angefangene Protokolle. Ein abgeschlossenes ist der
+                  Nachweis der Prüfung – der Server weist es ohnehin ab, aber
+                  ein Knopf, der nur zur Fehlermeldung führt, ist keiner.
+                */}
+                {!inspection.completedAt && (
+                  <EntfernenKnopf
+                    klein
+                    pfad={`/inspections/${inspection.id}`}
+                    titel={`Protokoll ${inspection.inspectionNumber} verwerfen`}
+                    knopf="Verwerfen"
+                    beschriftung="Verwerfen"
+                    beschreibung={
+                      <>
+                        Das angefangene Protokoll zu{' '}
+                        <strong>{inspection.door?.doorNumber ?? 'dieser Anlage'}</strong> wird samt
+                        seiner Prüfpunkte und der darin erfaßten Mängel gelöscht. Abgeschlossene
+                        Protokolle bleiben davon unberührt.
+                      </>
+                    }
+                    onEntfernt={() => state.reload()}
+                  />
+                )}
+              </td>
             </>
           );
         }}
