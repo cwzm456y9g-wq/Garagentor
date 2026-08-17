@@ -127,8 +127,7 @@ export default function PurchaseOrdersPage() {
                 <EntfernenKnopf
                   klein
                   pfad={`/purchase-orders/${order.id}`}
-                  titel={`Bestellung ${order.orderNumber} entfernen`}
-                  beschriftung="Entfernen"
+                  titel={`Bestellung ${order.orderNumber} löschen`}
                   beschreibung={
                     <>
                       Die Bestellung wird entfernt. Bereits gebuchte Wareneingänge bleiben im Lager

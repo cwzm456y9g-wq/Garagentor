@@ -149,8 +149,7 @@ export default function InventoryPage() {
               <EntfernenKnopf
                 klein
                 pfad={`/articles/${article.id}`}
-                titel={`Artikel ${article.articleNumber} entfernen`}
-                beschriftung="Entfernen"
+                titel={`Artikel ${article.articleNumber} löschen`}
                 beschreibung={
                   <>
                     Der Artikel wird aus dem Stamm entfernt. Steht er auf einem Beleg oder gibt es

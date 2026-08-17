@@ -45,7 +45,7 @@ export class CustomersService {
         where,
         include: {
           addresses: { where: { type: AddressType.RECHNUNG }, take: 1 },
-          _count: { select: { doors: true, orders: true, invoices: true } },
+          _count: { select: { doors: true, quotes: true, orders: true, invoices: true } },
         },
         orderBy: orderBy(query, SORTABLE, { customerNumber: 'asc' }),
         skip: query.skip,

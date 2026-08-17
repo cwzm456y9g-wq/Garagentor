@@ -11,10 +11,9 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { use, useState } from 'react';
+import { use } from 'react';
 import {
   Badge,
-  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -24,10 +23,9 @@ import {
   StatCard,
   Table,
 } from '@/components/ui';
-import { Bestaetigen } from '@/components/bestaetigen';
-import { api } from '@/lib/api-client';
-import { useAction, useApi } from '@/lib/hooks';
-import type { Customer, CustomerStatistics, Door, Invoice, Order, Quote } from '@/lib/types';
+import { KundeEntfernen } from '@/components/beleg-entfernen';
+import { useApi } from '@/lib/hooks';
+import type { Customer, CustomerStatistics, Door, Invoice, Quote } from '@/lib/types';
 import { doorStatus, invoiceStatus, quoteStatus } from '@/lib/status';
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,13 +36,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const doors = useApi<{ items: Door[] }>('/doors', { customerId: id, pageSize: 20 });
   const quotes = useApi<{ items: Quote[] }>('/quotes', { customerId: id, pageSize: 5 });
   const invoices = useApi<{ items: Invoice[] }>('/invoices', { customerId: id, pageSize: 5 });
-  // Nur, um zu wissen, ob überhaupt etwas hängt – für die Rückfrage vor dem
-  // Löschen. Der Server entscheidet danach ohnehin selbst.
-  const orders = useApi<{ items: Order[] }>('/orders', { customerId: id, pageSize: 1 });
 
   const router = useRouter();
-  const entfernen = useAction(() => api.delete<{ deleted?: boolean }>(`/customers/${id}`));
-  const [loeschenOffen, setLoeschenOffen] = useState(false);
 
   if (customer.error) return <ErrorState message={customer.error} onRetry={customer.reload} />;
   if (customer.loading || !customer.data) return <LoadingState />;
@@ -53,11 +46,16 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const billing = data.addresses?.find((address) => address.type === 'RECHNUNG');
   // Hängt irgendein Beleg am Kunden, wird er stillgelegt statt gelöscht – so
   // hält es der Server, und der Knopf soll dasselbe sagen.
+  // Dieselben Zähler, die der Dienst beim Entfernen prüft – nicht die gerade
+  // geladenen Listen. Die zeigen nur die erste Seite und hätten den Kunden bei
+  // vielen Belegen falsch als unbelastet ausgewiesen.
+  const zaehler = data._count;
   const hatBelege =
-    (doors.data?.items ?? []).length > 0 ||
-    (quotes.data?.items ?? []).length > 0 ||
-    (invoices.data?.items ?? []).length > 0 ||
-    (orders.data?.items ?? []).length > 0;
+    (zaehler?.doors ?? 0) +
+      (zaehler?.quotes ?? 0) +
+      (zaehler?.orders ?? 0) +
+      (zaehler?.invoices ?? 0) >
+    0;
 
   return (
     <>
@@ -78,50 +76,15 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
               Angebot erstellen
             </LinkButton>
             <LinkButton href={`/kunden/${data.id}/bearbeiten`}>Bearbeiten</LinkButton>
-            <Button variant="ghost" onClick={() => setLoeschenOffen(true)}>
-              {hatBelege ? 'Stilllegen' : 'Löschen'}
-            </Button>
+            {/* Derselbe Knopf wie in der Kundenliste. */}
+            <KundeEntfernen
+              kunde={data}
+              name={customerDisplayName(data)}
+              onEntfernt={() => (hatBelege ? customer.reload() : router.push('/kunden'))}
+            />
           </>
         }
       />
-
-      {loeschenOffen && (
-        <Bestaetigen
-          titel={
-            hatBelege
-              ? `${customerDisplayName(data)} stilllegen`
-              : `${customerDisplayName(data)} löschen`
-          }
-          knopf={hatBelege ? 'Stilllegen' : 'Endgültig löschen'}
-          laeuft={entfernen.loading}
-          fehler={entfernen.error}
-          beschreibung={
-            hatBelege ? (
-              <>
-                Zu diesem Kunden gibt es bereits Belege oder Toranlagen. Gelöscht wird er deshalb
-                nicht, sondern stillgelegt: Er verschwindet aus den Auswahllisten, seine Angebote,
-                Rechnungen und Prüfprotokolle bleiben vollständig erhalten. Rechnungen müssen nach
-                den Grundsätzen zur ordnungsmäßigen Buchführung nachvollziehbar bleiben, und ohne
-                den Kunden dahinter wären sie es nicht.
-              </>
-            ) : (
-              <>
-                Zu diesem Kunden hängen keine Angebote, Aufträge, Rechnungen oder Toranlagen. Er
-                wird mitsamt seinen Adressen, Ansprechpartnern und Objekten vollständig entfernt.
-                Das lässt sich nicht rückgängig machen.
-              </>
-            )
-          }
-          onAbbrechen={() => setLoeschenOffen(false)}
-          onBestaetigen={async () => {
-            const ergebnis = await entfernen.run();
-            if (!ergebnis) return;
-            setLoeschenOffen(false);
-            if (ergebnis.deleted) router.push('/kunden');
-            else customer.reload();
-          }}
-        />
-      )}
 
       {stats.data && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

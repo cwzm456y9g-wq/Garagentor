@@ -3,6 +3,7 @@
 import { formatDate, formatHours, formatNumber } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { ServiceberichtEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -56,6 +57,7 @@ export default function ServiceReportsPage() {
             <th className="text-right">Arbeitszeit</th>
             <th className="text-right">Anfahrt</th>
             <th>Status</th>
+            <th />
           </>
         }
         renderRow={(report) => (
@@ -99,6 +101,9 @@ export default function ServiceReportsPage() {
                   Folgeauftrag
                 </Badge>
               )}
+            </td>
+            <td className="text-right whitespace-nowrap">
+              <ServiceberichtEntfernen bericht={report} klein onEntfernt={() => state.reload()} />
             </td>
           </>
         )}

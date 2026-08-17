@@ -3,6 +3,7 @@
 import { employmentTypeLabels, formatDate, formatNumber } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { MitarbeiterEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, Card, EmptyState, LinkButton, LoadingState, PageHeader } from '@/components/ui';
 import { useApi, useList } from '@/lib/hooks';
@@ -89,6 +90,7 @@ export default function StaffPage() {
             <th>Eintritt</th>
             <th className="text-right">Wochenstunden</th>
             <th>Sachkunde</th>
+            <th />
           </>
         }
         renderRow={(employee) => (
@@ -125,6 +127,13 @@ export default function StaffPage() {
               ) : (
                 <span className="text-xs text-slate-500">keine</span>
               )}
+            </td>
+            <td className="text-right whitespace-nowrap">
+              <MitarbeiterEntfernen
+                mitarbeiter={employee}
+                klein
+                onEntfernt={() => state.reload()}
+              />
             </td>
           </>
         )}

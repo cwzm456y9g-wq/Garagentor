@@ -26,9 +26,17 @@ export interface Wirkung {
   beschreibung: string;
 }
 
-const NICHT_MOEGLICH = (grund: string): Wirkung => ({
+/**
+ * Ein aussichtsloser Fall.
+ *
+ * Der Knopf bleibt trotzdem stehen und trägt die Beschriftung, die er sonst
+ * trüge – geklickt erklärt er, warum es nicht geht. Ihn zu verstecken wäre
+ * bequemer, ließe aber die Frage offen, die der Betrachter tatsächlich hat:
+ * Warum werde ich das nicht los?
+ */
+const NICHT_MOEGLICH = (grund: string, beschriftung = 'Löschen'): Wirkung => ({
   moeglich: false,
-  beschriftung: 'Entfernen',
+  beschriftung,
   titel: 'Nicht möglich',
   knopf: 'Verstanden',
   beschreibung: grund,
@@ -51,7 +59,7 @@ export function angebotWirkung(nummer: string, status: string, auftraege: number
   }
 
   if (status === 'STORNIERT') {
-    return NICHT_MOEGLICH(`Das Angebot ${nummer} ist bereits storniert.`);
+    return NICHT_MOEGLICH(`Das Angebot ${nummer} ist bereits storniert.`, 'Stornieren');
   }
 
   if (status === 'ENTWURF') {
@@ -91,7 +99,7 @@ export function auftragWirkung(nummer: string, status: string, rechnungen: numbe
   }
 
   if (status === 'STORNIERT') {
-    return NICHT_MOEGLICH(`Der Auftrag ${nummer} ist bereits storniert.`);
+    return NICHT_MOEGLICH(`Der Auftrag ${nummer} ist bereits storniert.`, 'Stornieren');
   }
 
   if (status === 'ANGELEGT') {
@@ -123,7 +131,7 @@ export function auftragWirkung(nummer: string, status: string, rechnungen: numbe
  */
 export function rechnungWirkung(nummer: string, status: string, bezahlt: number): Wirkung {
   if (status === 'STORNIERT') {
-    return NICHT_MOEGLICH(`Die Rechnung ${nummer} ist bereits storniert.`);
+    return NICHT_MOEGLICH(`Die Rechnung ${nummer} ist bereits storniert.`, 'Stornieren');
   }
 
   if (status === 'ENTWURF') {
@@ -154,5 +162,131 @@ export function rechnungWirkung(nummer: string, status: string, bezahlt: number)
     beschreibung:
       `Die Rechnung ${nummer} bleibt erhalten und wird als storniert gekennzeichnet. ${GOBD}` +
       `${gutschrift} Offene Mahnungen werden abgebrochen.`,
+  };
+}
+
+/* Stammdaten ------------------------------------------------------------ */
+
+/**
+ * Kunde, Toranlage und Mitarbeiter verhalten sich gleich – und anders als die
+ * Belege: Hängt Geschichte daran, verschwinden sie nicht, sondern werden
+ * stillgelegt. Das ist kein Trostpreis, sondern die richtige Wahl: Ein Kunde
+ * mit Rechnungen aus dem Vorjahr muß auffindbar bleiben, auch wenn man nicht
+ * mehr für ihn arbeitet.
+ *
+ * Die Zähler kommen aus derselben Quelle, die der Dienst prüft. Stehen sie auf
+ * null, wird wirklich gelöscht.
+ */
+function stillegenOderLoeschen(opts: {
+  bezeichnung: string;
+  was: string;
+  belastet: boolean;
+  /** Was an Geschichte hängt, für den erklärenden Satz. */
+  anhang: string;
+  /** Wie der Zustand danach heißt. */
+  zustand: string;
+  folgen: string;
+}): Wirkung {
+  if (opts.belastet) {
+    return {
+      moeglich: true,
+      beschriftung: 'Stilllegen',
+      titel: `${opts.bezeichnung} stilllegen`,
+      knopf: 'Stilllegen',
+      beschreibung:
+        `${opts.bezeichnung} bleibt erhalten und wird auf „${opts.zustand}“ gesetzt. ` +
+        `${opts.anhang} ${opts.folgen}`,
+    };
+  }
+
+  return {
+    moeglich: true,
+    beschriftung: 'Löschen',
+    titel: `${opts.bezeichnung} löschen`,
+    knopf: 'Endgültig löschen',
+    beschreibung:
+      `${opts.bezeichnung} wird vollständig entfernt. Es hängt keine Geschichte daran – ` +
+      `${opts.was}`,
+  };
+}
+
+/** Kunde. Belastet ihn ein Beleg oder eine Anlage, wird er stillgelegt. */
+export function kundeWirkung(
+  name: string,
+  zaehler: { quotes?: number; orders?: number; invoices?: number; doors?: number } | undefined,
+): Wirkung {
+  const z = zaehler ?? {};
+  const summe = (z.quotes ?? 0) + (z.orders ?? 0) + (z.invoices ?? 0) + (z.doors ?? 0);
+
+  return stillegenOderLoeschen({
+    bezeichnung: name,
+    was: 'weder Angebot noch Auftrag, Rechnung oder Toranlage.',
+    belastet: summe > 0,
+    zustand: 'nicht aktiv',
+    anhang:
+      'Belege und Anlagen bleiben lesbar – eine Rechnung aus dem Vorjahr muß auffindbar sein, ' +
+      'auch wenn man nicht mehr für ihn arbeitet.',
+    folgen: 'In den Auswahllisten für neue Vorgänge erscheint er nicht mehr.',
+  });
+}
+
+/** Toranlage. Ist sie geprüft oder gewartet worden, wird sie stillgelegt. */
+export function anlageWirkung(
+  nummer: string,
+  zaehler: { inspections?: number; serviceReports?: number } | undefined,
+): Wirkung {
+  const z = zaehler ?? {};
+  const summe = (z.inspections ?? 0) + (z.serviceReports ?? 0);
+
+  return stillegenOderLoeschen({
+    bezeichnung: `Die Anlage ${nummer}`,
+    was: 'keine Prüfung und kein Servicebericht.',
+    belastet: summe > 0,
+    zustand: 'stillgelegt',
+    anhang: 'Prüfprotokolle und Serviceberichte bleiben als Nachweis erhalten.',
+    folgen: 'Eine Prüfung wird für sie nicht mehr fällig.',
+  });
+}
+
+/** Mitarbeiter. Hat er gearbeitet, geprüft oder berichtet, wird er stillgelegt. */
+export function mitarbeiterWirkung(
+  name: string,
+  zaehler: { timeEntries?: number; inspections?: number; serviceReports?: number } | undefined,
+): Wirkung {
+  const z = zaehler ?? {};
+  const summe = (z.timeEntries ?? 0) + (z.inspections ?? 0) + (z.serviceReports ?? 0);
+
+  return stillegenOderLoeschen({
+    bezeichnung: name,
+    was: 'keine erfaßte Zeit, keine Prüfung und kein Servicebericht.',
+    belastet: summe > 0,
+    zustand: 'ausgeschieden',
+    anhang:
+      'Zeiten, Prüfungen und Berichte bleiben ihm zugeordnet – ein Prüfprotokoll ohne prüfende ' +
+      'Person wäre als Nachweis wertlos.',
+    folgen: 'Das Austrittsdatum wird auf heute gesetzt, sofern noch keines eingetragen ist.',
+  });
+}
+
+/**
+ * Servicebericht. Nur ein Entwurf verschwindet – ein abgeschlossener ist mit
+ * der Unterschrift des Kunden ein Nachweis der geleisteten Arbeit.
+ */
+export function serviceberichtWirkung(nummer: string, status: string): Wirkung {
+  if (status !== 'ENTWURF') {
+    return NICHT_MOEGLICH(
+      `Der Servicebericht ${nummer} ist abgeschlossen und damit der Nachweis der geleisteten ` +
+        'Arbeit – oft mit der Unterschrift des Kunden. Er kann nicht gelöscht werden.',
+    );
+  }
+
+  return {
+    moeglich: true,
+    beschriftung: 'Löschen',
+    titel: `Entwurf ${nummer} löschen`,
+    knopf: 'Endgültig löschen',
+    beschreibung:
+      `Der Berichtsentwurf ${nummer} wird vollständig entfernt. Er ist weder abgeschlossen ` +
+      'noch abgerechnet; verbuchtes Material gibt es dazu noch nicht.',
   };
 }

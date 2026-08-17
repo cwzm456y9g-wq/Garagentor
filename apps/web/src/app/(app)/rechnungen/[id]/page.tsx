@@ -15,7 +15,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useState, type FormEvent } from 'react';
-import { Bestaetigen } from '@/components/bestaetigen';
+import { RechnungEntfernen } from '@/components/beleg-entfernen';
 import { DocumentItems } from '@/components/document-items';
 import { MailButton } from '@/components/mail-dialog';
 import {
@@ -54,10 +54,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     api.post(`/invoices/${id}/payments`, body),
   );
   const dun = useAction(() => api.post(`/invoices/${id}/dunnings`, {}));
-  const cancel = useAction((grund?: string) =>
-    api.post(`/invoices/${id}/cancel`, grund ? { reason: grund } : {}),
-  );
-  const [stornoOffen, setStornoOffen] = useState(false);
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (loading || !data) return <LoadingState />;
@@ -69,7 +65,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const istEntwurf = data.status === 'ENTWURF';
   const open = data.openAmount ?? data.grossTotal - data.deductedAmount - data.paidAmount;
   const mayBook = hasRole('GESCHAEFTSFUEHRUNG', 'BUERO', 'BUCHHALTUNG');
-  const actionError = send.error ?? pay.error ?? dun.error ?? cancel.error;
+  const actionError = send.error ?? pay.error ?? dun.error;
 
   async function onPayment(event: FormEvent) {
     event.preventDefault();
@@ -134,63 +130,25 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     Mahnung erstellen
                   </Button>
                 )}
-                {data.status !== 'STORNIERT' && (
-                  <Button variant="ghost" onClick={() => setStornoOffen(true)}>
-                    {istEntwurf ? 'Entwurf löschen' : 'Stornieren'}
-                  </Button>
-                )}
+                {/*
+                  Derselbe Knopf wie in der Liste. Ob gelöscht oder storniert
+                  wird und ob nach einem Grund gefragt wird, entscheidet die
+                  Wirkung – nicht diese Seite.
+                */}
+                <RechnungEntfernen
+                  rechnung={data}
+                  onEntfernt={() => (istEntwurf ? router.push('/rechnungen') : reload())}
+                />
               </>
             )}
           </>
         }
       />
 
-      {actionError && !stornoOffen && (
+      {actionError && (
         <div className="mb-4">
           <ErrorState message={actionError} />
         </div>
-      )}
-
-      {stornoOffen && (
-        <Bestaetigen
-          titel={istEntwurf ? 'Entwurf löschen' : `Rechnung ${data.invoiceNumber} stornieren`}
-          knopf={istEntwurf ? 'Endgültig löschen' : 'Stornieren'}
-          grundLabel={istEntwurf ? undefined : 'Grund der Stornierung'}
-          laeuft={cancel.loading}
-          fehler={cancel.error}
-          beschreibung={
-            istEntwurf ? (
-              <>
-                Der Entwurf {data.invoiceNumber} wird vollständig entfernt. Er war nie ein Beleg –
-                versendet wurde er nicht, gebucht auch nicht. Der Vorgang wird im Änderungsprotokoll
-                vermerkt.
-              </>
-            ) : (
-              <>
-                Die Rechnung bleibt erhalten und wird als storniert gekennzeichnet. Löschen ist
-                nicht möglich: Ein einmal ausgestellter Beleg muss nach den Grundsätzen zur
-                ordnungsmäßigen Buchführung nachvollziehbar bleiben.
-                {data.paidAmount > 0 && (
-                  <>
-                    {' '}
-                    Auf die Rechnung wurden bereits {data.paidAmount.toFixed(2)} € gezahlt – dafür
-                    entsteht automatisch eine Gutschrift.
-                  </>
-                )}{' '}
-                Offene Mahnungen werden abgebrochen.
-              </>
-            )
-          }
-          onAbbrechen={() => setStornoOffen(false)}
-          onBestaetigen={async (grund) => {
-            const ergebnis = await cancel.run(grund);
-            if (!ergebnis) return;
-            setStornoOffen(false);
-            // Nach dem Löschen gibt es nichts mehr nachzuladen.
-            if (istEntwurf) router.push('/rechnungen');
-            else reload();
-          }}
-        />
       )}
 
       {paymentOpen && (

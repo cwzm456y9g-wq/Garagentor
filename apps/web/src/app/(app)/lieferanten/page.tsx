@@ -70,8 +70,7 @@ export default function SuppliersPage() {
               <EntfernenKnopf
                 klein
                 pfad={`/suppliers/${supplier.id}`}
-                titel={`Lieferant ${supplier.supplierNumber} entfernen`}
-                beschriftung="Entfernen"
+                titel={`Lieferant ${supplier.supplierNumber} löschen`}
                 beschreibung={
                   <>
                     Der Lieferant wird entfernt. Hängen Bestellungen oder Artikel daran, lehnt der

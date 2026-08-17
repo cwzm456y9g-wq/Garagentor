@@ -90,8 +90,7 @@ export default function ProjectsPage() {
                 <EntfernenKnopf
                   klein
                   pfad={`/projects/${project.id}`}
-                  titel={`Projekt ${project.projectNumber} entfernen`}
-                  beschriftung="Entfernen"
+                  titel={`Projekt ${project.projectNumber} löschen`}
                   beschreibung={
                     <>
                       Das Projekt wird mitsamt seinen Aufgaben entfernt. Zugeordnete Aufträge

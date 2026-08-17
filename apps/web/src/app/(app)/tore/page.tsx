@@ -8,6 +8,7 @@ import {
 } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { AnlageEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -88,10 +89,13 @@ export default function DoorsPage() {
             <th>Typ</th>
             <th>Status</th>
             <th>Nächste Prüfung</th>
+            <th />
           </>
         }
         renderRow={(door) => {
-          const state = doorStatus(door.status);
+          // Nicht „state“: Der Listenzustand heißt oben schon so, und ein
+          // überschatteter Name hat hier bereits einmal einen Fehler gekostet.
+          const anzeige = doorStatus(door.status);
           const due = door.nextInspectionDue ? new Date(door.nextInspectionDue).getTime() : null;
           const days = due === null ? null : Math.round((due - now) / 86_400_000);
           const overdue = due !== null && due < now;
@@ -118,7 +122,7 @@ export default function DoorsPage() {
               <td className="text-slate-700">{door.location}</td>
               <td className="text-slate-600">{doorTypeLabels[door.type]}</td>
               <td>
-                <Badge tone={state.tone}>{state.label}</Badge>
+                <Badge tone={anzeige.tone}>{anzeige.label}</Badge>
               </td>
               <td>
                 {door.operationMode !== 'KRAFTBETAETIGT' ? (
@@ -130,6 +134,9 @@ export default function DoorsPage() {
                     {formatDate(door.nextInspectionDue)}
                   </Badge>
                 )}
+              </td>
+              <td className="text-right whitespace-nowrap">
+                <AnlageEntfernen anlage={door} klein onEntfernt={() => state.reload()} />
               </td>
             </>
           );

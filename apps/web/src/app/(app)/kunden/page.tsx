@@ -3,6 +3,7 @@
 import { customerDisplayName, customerTypeLabels, formatAddress } from '@garagentor/shared';
 import Link from 'next/link';
 import { useState } from 'react';
+import { KundeEntfernen } from '@/components/beleg-entfernen';
 import { ListPage } from '@/components/list-page';
 import { Badge, LinkButton, PageHeader, Select } from '@/components/ui';
 import { useList } from '@/lib/hooks';
@@ -67,6 +68,7 @@ export default function CustomersPage() {
             <th>Kontakt</th>
             <th className="text-right">Anlagen</th>
             <th className="text-right">Aufträge</th>
+            <th />
           </>
         }
         renderRow={(customer) => (
@@ -98,6 +100,14 @@ export default function CustomersPage() {
             </td>
             <td className="tabular text-right">{customer._count?.doors ?? 0}</td>
             <td className="tabular text-right">{customer._count?.orders ?? 0}</td>
+            <td className="text-right whitespace-nowrap">
+              <KundeEntfernen
+                kunde={customer}
+                name={customerDisplayName(customer)}
+                klein
+                onEntfernt={() => state.reload()}
+              />
+            </td>
           </>
         )}
       />

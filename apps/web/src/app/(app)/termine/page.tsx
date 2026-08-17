@@ -141,8 +141,7 @@ export default function AppointmentsPage() {
                         <EntfernenKnopf
                           klein
                           pfad={`/appointments/${appointment.id}`}
-                          titel={`Termin „${appointment.title}“ entfernen`}
-                          beschriftung="Entfernen"
+                          titel={`Termin „${appointment.title}“ löschen`}
                           beschreibung={
                             <>
                               Der Termin wird entfernt und verschwindet bei den eingeteilten

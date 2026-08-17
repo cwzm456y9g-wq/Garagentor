@@ -707,6 +707,8 @@ export interface Employee {
   qualifications?: Qualification[];
   absences?: Absence[];
   urlaubskonto?: VacationBalance;
+  /** Dieselben Zähler, die der Dienst beim Entfernen prüft. */
+  _count?: { timeEntries?: number; inspections?: number; serviceReports?: number };
 }
 
 export interface Absence {

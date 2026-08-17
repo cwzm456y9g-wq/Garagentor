@@ -258,8 +258,7 @@ export default function TimeTrackingPage() {
                     <EntfernenKnopf
                       klein
                       pfad={`/time-entries/${entry.id}`}
-                      titel="Zeiteintrag entfernen"
-                      beschriftung="Entfernen"
+                      titel="Zeiteintrag löschen"
                       beschreibung={
                         <>
                           Der Eintrag über {formatHours(entry.hours)} wird entfernt. Ist er schon

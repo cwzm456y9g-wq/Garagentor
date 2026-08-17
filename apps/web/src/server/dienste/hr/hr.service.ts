@@ -66,6 +66,9 @@ export class HrService {
             where: { qualifiesForInspection: true },
             select: { id: true, name: true, expiresAt: true },
           },
+          // Dieselben Zähler, die `remove` prüft: Damit kann die Liste vorher
+          // ankündigen, ob ein Mitarbeiter gelöscht oder stillgelegt wird.
+          _count: { select: { timeEntries: true, inspections: true, serviceReports: true } },
         },
         orderBy: orderBy(query, SORTABLE, { lastName: 'asc' }),
         skip: query.skip,

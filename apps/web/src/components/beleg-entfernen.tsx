@@ -6,15 +6,28 @@ import { Button } from '@/components/ui';
 import { api } from '@/lib/api-client';
 import {
   angebotWirkung,
+  anlageWirkung,
   auftragWirkung,
+  kundeWirkung,
+  mitarbeiterWirkung,
   rechnungWirkung,
+  serviceberichtWirkung,
   type Wirkung,
 } from '@/lib/entfernen-wirkung';
 import { useAction } from '@/lib/hooks';
-import type { Invoice, Order, Quote } from '@/lib/types';
+import type { Customer, Door, Employee, Invoice, Order, Quote, ServiceReport } from '@/lib/types';
 
 /**
- * Angebot, Auftrag oder Rechnung entfernen – aus der Liste wie aus dem Beleg.
+ * Einen Datensatz entfernen – aus der Liste wie von seiner eigenen Seite.
+ *
+ * Der Knopf steht bewußt an beiden Stellen im selben Bauteil. Vorher hatten
+ * die Detailseiten von Angebot, Rechnung und Kunde jeweils eigenen Code mit
+ * eigener Rückfrage: derselbe Vorgang las sich je nach Einstieg anders, und
+ * eine Regeländerung hätte an mehreren Stellen nachgezogen werden müssen.
+ *
+ * Belege wie Stammdaten laufen darüber. Was im Einzelfall geschieht, steckt
+ * in der `Wirkung` – ein Entwurf verschwindet, ein gebuchter Beleg wird
+ * storniert, ein Kunde mit Geschichte stillgelegt.
  *
  * Ein Knopf für drei Belegarten, weil sich alle drei gleich verhalten: Ein
  * Entwurf verschwindet, alles Weitergegangene wird storniert, und was schon
@@ -172,6 +185,94 @@ export function RechnungEntfernen({
       weg="storno"
       // Den Grund nimmt nur die Stornierung entgegen; beim Entwurf verfiele er.
       mitGrund={rechnung.status !== 'ENTWURF'}
+      klein={klein}
+      onEntfernt={onEntfernt}
+    />
+  );
+}
+
+/* Stammdaten ------------------------------------------------------------ */
+
+export function KundeEntfernen({
+  kunde,
+  name,
+  klein,
+  onEntfernt,
+}: {
+  kunde: Customer;
+  /** Anzeigename – Firma oder Nachname, je nach Kundenart. */
+  name: string;
+  klein?: boolean;
+  onEntfernt: () => void;
+}) {
+  return (
+    <BelegEntfernen
+      wirkung={kundeWirkung(name, kunde._count)}
+      pfad={`/customers/${kunde.id}`}
+      weg="loeschen"
+      klein={klein}
+      onEntfernt={onEntfernt}
+    />
+  );
+}
+
+export function AnlageEntfernen({
+  anlage,
+  klein,
+  onEntfernt,
+}: {
+  anlage: Door;
+  klein?: boolean;
+  onEntfernt: () => void;
+}) {
+  return (
+    <BelegEntfernen
+      wirkung={anlageWirkung(anlage.doorNumber, anlage._count)}
+      pfad={`/doors/${anlage.id}`}
+      weg="loeschen"
+      klein={klein}
+      onEntfernt={onEntfernt}
+    />
+  );
+}
+
+export function MitarbeiterEntfernen({
+  mitarbeiter,
+  klein,
+  onEntfernt,
+}: {
+  mitarbeiter: Employee;
+  klein?: boolean;
+  onEntfernt: () => void;
+}) {
+  return (
+    <BelegEntfernen
+      wirkung={mitarbeiterWirkung(
+        `${mitarbeiter.firstName} ${mitarbeiter.lastName}`,
+        mitarbeiter._count,
+      )}
+      pfad={`/employees/${mitarbeiter.id}`}
+      weg="loeschen"
+      klein={klein}
+      onEntfernt={onEntfernt}
+    />
+  );
+}
+
+export function ServiceberichtEntfernen({
+  bericht,
+  klein,
+  onEntfernt,
+}: {
+  bericht: ServiceReport;
+  klein?: boolean;
+  onEntfernt: () => void;
+}) {
+  return (
+    <BelegEntfernen
+      wirkung={serviceberichtWirkung(bericht.reportNumber, bericht.status)}
+      pfad={`/service-reports/${bericht.id}`}
+      weg="loeschen"
       klein={klein}
       onEntfernt={onEntfernt}
     />
