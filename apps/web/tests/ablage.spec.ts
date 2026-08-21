@@ -106,3 +106,34 @@ describe('Dateiablage', () => {
     });
   });
 });
+
+/**
+ * Die Obergrenze für Uploads.
+ *
+ * Sie steht in der Umgebung, wird aber an zwei Stellen gebraucht: Der Server
+ * weist zu große Dateien ab, und die Oberfläche soll die Zahl nennen, bevor
+ * jemand eine Datei aussucht. Beide müssen dieselbe Zahl sehen – eine zweite,
+ * fest eingetragene Angabe im Formular wäre nach der ersten Änderung falsch.
+ */
+describe('Obergrenze für Uploads', () => {
+  it('meldet die Grenze aus der Umgebung in Megabyte', async () => {
+    process.env.MAX_UPLOAD_MB = '50';
+    const { ablageStatus } = await ablageModul();
+
+    expect(ablageStatus().maxMb).toBe(50);
+  });
+
+  it('nimmt ohne Angabe 50 MB an', async () => {
+    delete process.env.MAX_UPLOAD_MB;
+    const { ablageStatus } = await ablageModul();
+
+    expect(ablageStatus().maxMb).toBe(50);
+  });
+
+  it('folgt einer abweichenden Vorgabe', async () => {
+    process.env.MAX_UPLOAD_MB = '10';
+    const { ablageStatus } = await ablageModul();
+
+    expect(ablageStatus().maxMb).toBe(10);
+  });
+});

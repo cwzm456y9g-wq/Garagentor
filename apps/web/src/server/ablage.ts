@@ -92,14 +92,19 @@ export function ablageStatus(): {
   adresse: string | null;
   bucket: string;
   schluesselGesetzt: boolean;
+  maxMb: number;
 } {
-  const { supabaseUrl, dienstSchluessel, bucket } = konfiguration().uploads;
+  const { supabaseUrl, dienstSchluessel, bucket, maxBytes } = konfiguration().uploads;
 
   return {
     eingerichtet: Boolean(supabaseUrl && dienstSchluessel),
     adresse: supabaseUrl,
     bucket,
     schluesselGesetzt: Boolean(dienstSchluessel),
+    // Damit die Oberfläche die Grenze nennen kann, bevor jemand eine zu große
+    // Datei aussucht. Sie erst nach der Übertragung abzuweisen ist auf einer
+    // Baustellenverbindung eine vergeudete Minute.
+    maxMb: Math.round(maxBytes / 1024 / 1024),
   };
 }
 

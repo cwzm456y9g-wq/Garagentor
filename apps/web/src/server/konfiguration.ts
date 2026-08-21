@@ -102,7 +102,7 @@ export function konfiguration(): Konfiguration {
       erneuerungsDauer: process.env.JWT_REFRESH_TTL ?? '7d',
     },
     uploads: {
-      maxBytes: Number.parseInt(process.env.MAX_UPLOAD_MB ?? '25', 10) * 1024 * 1024,
+      maxBytes: Number.parseInt(process.env.MAX_UPLOAD_MB ?? '50', 10) * 1024 * 1024,
       bucket: process.env.SUPABASE_BUCKET?.trim() || 'dokumente',
       supabaseUrl: process.env.SUPABASE_URL?.trim() || null,
       dienstSchluessel: process.env.SUPABASE_SERVICE_ROLE_KEY || null,

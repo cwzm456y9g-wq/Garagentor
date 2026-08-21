@@ -15,7 +15,10 @@ export default function DocumentsPage() {
 
   // Ohne eingerichtete Ablage scheitert jeder Upload. Das soll dastehen, bevor
   // jemand eine Datei aussucht – nicht erst danach.
-  const ablage = useApi<{ eingerichtet: boolean }>('/ablage');
+  // Dieselbe Abfrage trägt die Obergrenze: Sie kommt vom Server und nicht aus
+  // einer zweiten Zahl hier, sonst stünde nach einer Änderung in hPanel eine
+  // falsche Angabe im Formular.
+  const ablage = useApi<{ eingerichtet: boolean; maxMb: number }>('/ablage');
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadCategory, setUploadCategory] = useState('SONSTIGES');
@@ -23,9 +26,24 @@ export default function DocumentsPage() {
 
   const upload = useAction((body: FormData) => api.post<DocumentEntry>('/documents', body));
 
+  const maxMb = ablage.data?.maxMb;
+  const [zuGross, setZuGross] = useState<string | null>(null);
+
   async function onUpload() {
     const file = fileRef.current?.files?.[0];
     if (!file) return;
+
+    // Vor der Übertragung prüfen. Eine 60-MB-Datei erst hochzuladen und dann
+    // abzuweisen kostet auf einer Baustellenverbindung eine Minute für nichts.
+    if (maxMb && file.size > maxMb * 1024 * 1024) {
+      setZuGross(
+        `„${file.name}" ist ${(file.size / 1024 / 1024).toLocaleString('de-DE', {
+          maximumFractionDigits: 1,
+        })} MB groß. Erlaubt sind ${maxMb} MB.`,
+      );
+      return;
+    }
+    setZuGross(null);
 
     const form = new FormData();
     form.append('file', file);
@@ -80,13 +98,19 @@ export default function DocumentsPage() {
             <Field
               label="Datei"
               htmlFor="file"
-              hint="PDF, Bild, Office-Dokument oder Text."
+              hint={
+                maxMb
+                  ? `PDF, Bild, Office-Dokument oder Text – höchstens ${maxMb} MB.`
+                  : 'PDF, Bild, Office-Dokument oder Text.'
+              }
+              error={zuGross ?? undefined}
               required
             >
               <input
                 id="file"
                 ref={fileRef}
                 type="file"
+                onChange={() => setZuGross(null)}
                 className="input file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3
                   file:py-1 file:text-sm"
               />
