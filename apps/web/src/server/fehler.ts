@@ -29,6 +29,15 @@ export const konflikt = (text: string) => new HttpFehler(409, text);
 export const ungueltig = (text: string, felder?: Record<string, string>) =>
   new HttpFehler(400, text, felder);
 
+/**
+ * Zu viele Versuche in zu kurzer Zeit.
+ *
+ * 429 statt 401: Wer gebremst wird, soll erfahren, daß er warten muß – sonst
+ * hält er die Anwendung für kaputt und versucht es weiter, was die Sperre nur
+ * verlängert.
+ */
+export const zuVieleVersuche = (text: string) => new HttpFehler(429, text);
+
 interface Fehlerkoerper {
   statusCode: number;
   message: string;

@@ -3,9 +3,28 @@ import type { AuthUser, JwtPayload, LoginResponse } from '@garagentor/shared';
 import type { User } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { konfiguration } from '../konfiguration';
-import { nichtAngemeldet, ungueltig, verboten } from '../fehler';
+import { nichtAngemeldet, ungueltig, verboten, zuVieleVersuche } from '../fehler';
+import { anmeldebremse } from '../anmeldebremse';
+import { Logger } from '../nest-ersatz';
 import { prisma } from '../prisma';
 import { blindHash, passwortHashen, passwortPruefen } from '../passwort';
+
+const logger = new Logger('Anmeldung');
+
+/**
+ * Wie lange noch gewartet werden muß, in Worten.
+ *
+ * Der Text nennt bewußt keinen Grund über „zu viele Versuche" hinaus: Warum
+ * genau gebremst wird – dieses Konto oder diese Herkunft –, geht den
+ * Aufrufenden nichts an und wäre für einen Angreifer eine Auskunft.
+ */
+function wartetext(sekunden: number, herkunft: boolean): string {
+  const dauer = sekunden >= 120 ? `${Math.ceil(sekunden / 60)} Minuten` : `${sekunden} Sekunden`;
+
+  return herkunft
+    ? `Zu viele Anmeldeversuche von diesem Anschluß. Bitte in ${dauer} erneut versuchen.`
+    : `Zu viele fehlgeschlagene Anmeldeversuche. Bitte in ${dauer} erneut versuchen.`;
+}
 
 /** Kontext des anfragenden Geräts, wird am Refresh-Token vermerkt. */
 export interface Geraetekontext {
@@ -95,6 +114,19 @@ export async function anmelden(
   eingabe: { email: string; password: string },
   geraet: Geraetekontext = {},
 ): Promise<LoginResponse> {
+  const kennung = { email: eingabe.email, ...(geraet.ipAddress ? { ip: geraet.ipAddress } : {}) };
+
+  // Die Bremse steht vor der Passwortprüfung, nicht dahinter: Argon2id kostet
+  // 64 MB je Versuch, und die zahlt der Server sonst auch für Anfragen, die er
+  // ohnehin abweist. Genau darüber ließe er sich lahmlegen.
+  const befund = anmeldebremse.pruefen(kennung);
+  if (!befund.erlaubt) {
+    logger.warn(
+      `Anmeldung abgewiesen (${befund.grund}): ${eingabe.email} von ${geraet.ipAddress ?? 'unbekannt'}`,
+    );
+    throw zuVieleVersuche(wartetext(befund.wartenSek, befund.grund === 'herkunft'));
+  }
+
   const benutzer = await prisma.user.findUnique({ where: { email: eingabe.email } });
 
   // Auch bei unbekannter Adresse wird verifiziert, damit die Antwortzeit
@@ -103,11 +135,25 @@ export async function anmelden(
   const stimmt = await pruefePasswort(hash, eingabe.password);
 
   if (!benutzer || !stimmt) {
+    const folge = anmeldebremse.fehlversuch(kennung);
+    logger.warn(
+      `Fehlgeschlagene Anmeldung: ${eingabe.email} von ${geraet.ipAddress ?? 'unbekannt'}` +
+        (folge.gesperrt ? ` – Konto für ${folge.wartenSek} s gesperrt` : ''),
+    );
+
+    // Schnappt die Sperre gerade zu, wird das auch gesagt. Wer sich fünfmal
+    // vertippt hat, soll nicht beim sechsten Mal überrascht werden – und
+    // verraten wird dadurch nichts: Gezählt wird die eingegebene Adresse,
+    // ob es sie gibt oder nicht, also sperrt eine erfundene genauso.
+    if (folge.gesperrt) throw zuVieleVersuche(wartetext(folge.wartenSek, false));
+
     throw nichtAngemeldet('E-Mail-Adresse oder Passwort ist falsch.');
   }
   if (!benutzer.active) {
     throw verboten('Das Benutzerkonto ist deaktiviert.');
   }
+
+  anmeldebremse.erfolg(kennung);
 
   await prisma.user.update({
     where: { id: benutzer.id },
