@@ -1,0 +1,54 @@
+{
+  "name": "@garagentor/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js-Frontend der Garagentor-Branchensoftware",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@garagentor/shared": "*",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^6.19.3",
+    "@react-pdf/renderer": "^4.5.1",
+    "@supabase/supabase-js": "^2.58.0",
+    "argon2": "^0.44.0",
+    "hash-wasm": "^4.12.0",
+    "jsonwebtoken": "^9.0.2",
+    "next": "^15.5.4",
+    "nodemailer": "^9.0.5",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "zod": "^3.25.76"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/tests"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "json"
+    ],
+    "transform": {
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "tsconfig": "<rootDir>/tests/tsconfig.json"
+        }
+      ]
+    },
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    }
+  },
+  "prisma": {
+    "seed": "ts-node -P prisma/tsconfig.json prisma/seed.ts"
+  }
+}

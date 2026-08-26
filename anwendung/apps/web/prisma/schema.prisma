@@ -1,0 +1,1528 @@
+// Datenmodell der Garagentor-Branchensoftware.
+//
+// Geldbeträge liegen als Decimal(12,2) in der Datenbank. Die Route Handler
+// wandeln sie beim Ausliefern über `alsZahlen()` in JSON-Zahlen, damit
+// Oberfläche und Server dieselben Rechenhelfer aus @garagentor/shared nutzen.
+
+generator client {
+  provider = "prisma-client-js"
+
+  // Prisma arbeitet hier vollständig ohne seinen Rust-Anteil.
+  //
+  // Das ist keine Geschmacksfrage, sondern das Ergebnis einer langen Suche.
+  // Auf Hostingers geteiltem Webhosting stürzte die mitgelieferte
+  // Rust-Bibliothek zuerst ab („PANIC: timer has gone away"). Der Wechsel auf
+  // einen Treiber in JavaScript (`pg`, siehe src/server/prisma.ts) hat aber
+  // nur das **Netz** verlegt: Die Abfragen selbst baute weiterhin dieselbe
+  // Bibliothek, und sie stürzte nun nicht mehr ab, sondern blieb stehen.
+  // Von außen sah das aus wie eine unerreichbare Datenbank – während eine
+  // Verbindung von Hand daneben in 389 Millisekunden antwortete.
+  //
+  // Zwei Angaben sind dafür nötig, und beide einzeln reichen nicht:
+  //
+  //   queryCompiler   baut die Abfragen als WebAssembly statt in Rust.
+  //   engineType      = "client" – erst das lässt die kompilierte Bibliothek
+  //                     wirklich weg. Mit „library" (der Voreinstellung) wird
+  //                     sie weiter mitgeliefert und geladen.
+  //
+  // Nachgeprüft: Im fertigen Paket liegt keine einzige `.so.node` mehr, es ist
+  // von 92 auf 55 MB geschrumpft, und alles läuft – Anmeldung, Belege, PDF,
+  // DATEV, Nummernkreise, und vier gleichzeitige Lagerabgänge von je 10 aus
+  // 100 ergeben weiterhin 60. Die Sperren über SELECT … FOR UPDATE tragen also
+  // auch hier.
+  //
+  // `binaryTargets` steht bewusst nicht mehr da: Es zwang die Bibliothek
+  // zurück ins Paket. Migrationen brauchen sie nicht – dafür bringt die
+  // Prisma-Kommandozeile ihr eigenes Werkzeug mit.
+  engineType      = "client"
+  previewFeatures = ["driverAdapters", "queryCompiler"]
+}
+
+// Zwei Verbindungen, weil Supabase zwei verlangt:
+//
+// url        – der Supavisor-Pooler (Port 6543). Über ihn läuft der Betrieb.
+//              Hostinger startet den Node-Prozess bei Bedarf neu und kann ihn
+//              mehrfach halten; ohne Pooler wären die Verbindungen der
+//              Datenbank schnell aufgebraucht.
+// directUrl  – die direkte Verbindung (Port 5432). Nur für Migrationen. Der
+//              Pooler kann die dafür nötigen Sperren und Sitzungsvariablen
+//              nicht durchreichen.
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Benutzer und Zugriff
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum Role {
+  ADMIN
+  GESCHAEFTSFUEHRUNG
+  BUERO
+  BUCHHALTUNG
+  MONTEUR
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role      @default(BUERO)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeId String?   @unique
+
+  refreshTokens     RefreshToken[]
+  stockMovements    StockMovement[]
+  uploadedDocuments Document[]
+  auditLogs         AuditLog[]
+  sentMails         MailLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@map("users")
+}
+
+/// Refresh-Tokens werden nur als Hash abgelegt und sind einmalig verwendbar.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Personal
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum EmploymentType {
+  VOLLZEIT
+  TEILZEIT
+  MINIJOB
+  AUSZUBILDENDER
+  AUSHILFE
+  FREIER_MITARBEITER
+}
+
+enum AbsenceType {
+  URLAUB
+  KRANKHEIT
+  GLEITZEIT
+  SCHULUNG
+  UNBEZAHLT
+  SONSTIGES
+}
+
+enum AbsenceStatus {
+  BEANTRAGT
+  GENEHMIGT
+  ABGELEHNT
+  STORNIERT
+}
+
+model Employee {
+  id             String         @id @default(cuid())
+  employeeNumber String         @unique
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  mobile         String?
+  position       String?
+  employmentType EmploymentType @default(VOLLZEIT)
+  hireDate       DateTime
+  exitDate       DateTime?
+  /// Wochenarbeitszeit in Stunden.
+  weeklyHours    Decimal        @default(40) @db.Decimal(5, 2)
+  /// Interner Stundensatz für die Nachkalkulation.
+  hourlyCost     Decimal?       @db.Decimal(10, 2)
+  /// Verrechnungssatz gegenüber Kunden.
+  hourlyRate     Decimal?       @db.Decimal(10, 2)
+  vacationDays   Int            @default(30)
+  street         String?
+  zip            String?
+  city           String?
+  birthDate      DateTime?
+  notes          String?
+  active         Boolean        @default(true)
+
+  user            User?
+  qualifications  Qualification[]
+  absences        Absence[]
+  timeEntries     TimeEntry[]
+  inspections     Inspection[]    @relation("InspectionInspector")
+  serviceReports  ServiceReport[] @relation("ServiceReportTechnician")
+  appointments    Appointment[]   @relation("AppointmentAssignees")
+  managedProjects Project[]       @relation("ProjectManager")
+  projectTasks    ProjectTask[]   @relation("ProjectTaskAssignee")
+  approvedAbsence Absence[]       @relation("AbsenceApprover")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, lastName])
+  @@map("employees")
+}
+
+/// Nachweise wie die Sachkunde für kraftbetätigte Tore (DGUV Information 208-022)
+/// oder die Elektrofachkraft nach DGUV Vorschrift 3.
+model Qualification {
+  id                     String    @id @default(cuid())
+  employee               Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId             String
+  name                   String
+  issuer                 String?
+  certificate            String?
+  issuedAt               DateTime?
+  expiresAt              DateTime?
+  /// Berechtigt zur Durchführung wiederkehrender Prüfungen nach ASR A1.7.
+  qualifiesForInspection Boolean   @default(false)
+  notes                  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([expiresAt])
+  @@map("qualifications")
+}
+
+model Absence {
+  id         String        @id @default(cuid())
+  employee   Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  type       AbsenceType
+  status     AbsenceStatus @default(BEANTRAGT)
+  from       DateTime
+  to         DateTime
+  /// Angerechnete Arbeitstage (halbe Tage möglich).
+  days       Decimal       @db.Decimal(5, 2)
+  reason     String?
+  approver   Employee?     @relation("AbsenceApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  approverId String?
+  approvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, from])
+  @@index([status])
+  @@map("absences")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Kunden
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum CustomerType {
+  PRIVAT
+  GEWERBE
+  OEFFENTLICH
+  HAUSVERWALTUNG
+}
+
+enum Salutation {
+  HERR
+  FRAU
+  DIVERS
+  FIRMA
+}
+
+enum AddressType {
+  RECHNUNG
+  LIEFERUNG
+  OBJEKT
+}
+
+model Customer {
+  id               String       @id @default(cuid())
+  customerNumber   String       @unique
+  type             CustomerType @default(PRIVAT)
+  salutation       Salutation?
+  companyName      String?
+  firstName        String?
+  lastName         String?
+  email            String?
+  phone            String?
+  mobile           String?
+  website          String?
+  /// Umsatzsteuer-Identifikationsnummer.
+  vatId            String?
+  taxNumber        String?
+  /// Debitorenkonto in der Finanzbuchhaltung. Ohne Angabe leitet der
+  /// DATEV-Export die Nummer aus der Kundennummer ab.
+  debtorAccount    Int?
+  paymentTermsDays Int          @default(14)
+  /// Kundenrabatt in Prozent auf alle Positionen.
+  discountPercent  Decimal      @default(0) @db.Decimal(5, 2)
+  /// Kunde ist von der Umsatzsteuer befreit (§ 13b UStG o. Ä.).
+  reverseCharge    Boolean      @default(false)
+  creditLimit      Decimal?     @db.Decimal(12, 2)
+  notes            String?
+  active           Boolean      @default(true)
+
+  addresses            Address[]
+  contacts             Contact[]
+  sites                Site[]
+  doors                Door[]
+  quotes               Quote[]
+  orders               Order[]
+  invoices             Invoice[]
+  projects             Project[]
+  appointments         Appointment[]
+  maintenanceContracts MaintenanceContract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@index([companyName])
+  @@index([lastName])
+  @@map("customers")
+}
+
+model Address {
+  id         String      @id @default(cuid())
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  type       AddressType @default(RECHNUNG)
+  label      String?
+  street     String
+  zip        String
+  city       String
+  country    String      @default("DE")
+  isDefault  Boolean     @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId, type])
+  @@map("addresses")
+}
+
+model Contact {
+  id         String      @id @default(cuid())
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  salutation Salutation?
+  firstName  String
+  lastName   String
+  position   String?
+  email      String?
+  phone      String?
+  mobile     String?
+  isPrimary  Boolean     @default(false)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("contacts")
+}
+
+/// Objekt bzw. Liegenschaft, an der Toranlagen verbaut sind.
+model Site {
+  id           String   @id @default(cuid())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId   String
+  name         String
+  street       String
+  zip          String
+  city         String
+  country      String   @default("DE")
+  /// Hinweise zur Zufahrt, Schlüsselübergabe o. Ä.
+  accessNotes  String?
+  contactName  String?
+  contactPhone String?
+  active       Boolean  @default(true)
+
+  doors        Door[]
+  quotes       Quote[]
+  orders       Order[]
+  appointments Appointment[]
+  projects     Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("sites")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Angebote
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum QuoteStatus {
+  ENTWURF
+  VERSENDET
+  ANGENOMMEN
+  ABGELEHNT
+  ABGELAUFEN
+  STORNIERT
+}
+
+enum LineItemType {
+  ARTIKEL
+  LEISTUNG
+  TEXT
+  ZWISCHENSUMME
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  quoteNumber     String      @unique
+  customer        Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId      String
+  site            Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId          String?
+  status          QuoteStatus @default(ENTWURF)
+  date            DateTime    @default(now())
+  validUntil      DateTime
+  subject         String
+  introText       String?
+  outroText       String?
+  /// Gesamtrabatt in Prozent auf die Nettosumme.
+  discountPercent Decimal     @default(0) @db.Decimal(5, 2)
+  netTotal        Decimal     @default(0) @db.Decimal(12, 2)
+  vatTotal        Decimal     @default(0) @db.Decimal(12, 2)
+  grossTotal      Decimal     @default(0) @db.Decimal(12, 2)
+  sentAt          DateTime?
+  decidedAt       DateTime?
+  rejectionReason String?
+  notes           String?
+
+  items  QuoteItem[]
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status, date])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id              String       @id @default(cuid())
+  quote           Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quoteId         String
+  position        Int
+  type            LineItemType @default(LEISTUNG)
+  article         Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId       String?
+  title           String
+  description     String?
+  quantity        Decimal      @default(1) @db.Decimal(12, 3)
+  unit            String       @default("Stk")
+  unitPrice       Decimal      @default(0) @db.Decimal(12, 2)
+  discountPercent Decimal      @default(0) @db.Decimal(5, 2)
+  vatRate         Decimal      @default(19) @db.Decimal(5, 2)
+  netAmount       Decimal      @default(0) @db.Decimal(12, 2)
+  /// Optionale Position, die nicht in die Angebotssumme einfließt.
+  optional        Boolean      @default(false)
+
+  @@unique([quoteId, position])
+  @@index([articleId])
+  @@map("quote_items")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Aufträge
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum OrderStatus {
+  ANGELEGT
+  EINGEPLANT
+  IN_ARBEIT
+  WARTET_AUF_MATERIAL
+  ABGESCHLOSSEN
+  ABGERECHNET
+  STORNIERT
+}
+
+enum OrderType {
+  MONTAGE
+  REPARATUR
+  WARTUNG
+  PRUEFUNG
+  NOTDIENST
+  SONSTIGES
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique
+  customer          Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId        String
+  site              Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId            String?
+  quote             Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  quoteId           String?
+  project           Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId         String?
+  type              OrderType   @default(MONTAGE)
+  status            OrderStatus @default(ANGELEGT)
+  subject           String
+  description       String?
+  /// Bestellnummer oder Aktenzeichen des Kunden.
+  customerReference String?
+  plannedStart      DateTime?
+  plannedEnd        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  netTotal          Decimal     @default(0) @db.Decimal(12, 2)
+  vatTotal          Decimal     @default(0) @db.Decimal(12, 2)
+  grossTotal        Decimal     @default(0) @db.Decimal(12, 2)
+  discountPercent   Decimal     @default(0) @db.Decimal(5, 2)
+  notes             String?
+
+  items          OrderItem[]
+  invoices       Invoice[]
+  appointments   Appointment[]
+  timeEntries    TimeEntry[]
+  serviceReports ServiceReport[]
+  inspections    Inspection[]
+  stockMovements StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status, plannedStart])
+  @@index([projectId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String       @id @default(cuid())
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId          String
+  position         Int
+  type             LineItemType @default(LEISTUNG)
+  article          Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId        String?
+  title            String
+  description      String?
+  quantity         Decimal      @default(1) @db.Decimal(12, 3)
+  unit             String       @default("Stk")
+  unitPrice        Decimal      @default(0) @db.Decimal(12, 2)
+  discountPercent  Decimal      @default(0) @db.Decimal(5, 2)
+  vatRate          Decimal      @default(19) @db.Decimal(5, 2)
+  netAmount        Decimal      @default(0) @db.Decimal(12, 2)
+  /// Bereits in einer Rechnung abgerechnete Menge.
+  invoicedQuantity Decimal      @default(0) @db.Decimal(12, 3)
+
+  @@unique([orderId, position])
+  @@index([articleId])
+  @@map("order_items")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Rechnungen, Zahlungen, Mahnwesen
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum InvoiceType {
+  RECHNUNG
+  ABSCHLAGSRECHNUNG
+  SCHLUSSRECHNUNG
+  GUTSCHRIFT
+}
+
+enum InvoiceStatus {
+  ENTWURF
+  OFFEN
+  TEILBEZAHLT
+  BEZAHLT
+  UEBERFAELLIG
+  STORNIERT
+}
+
+enum PaymentMethod {
+  UEBERWEISUNG
+  BAR
+  KARTE
+  LASTSCHRIFT
+  PAYPAL
+  VERRECHNUNG
+}
+
+enum DunningLevel {
+  ZAHLUNGSERINNERUNG
+  MAHNUNG_1
+  MAHNUNG_2
+  LETZTE_MAHNUNG
+  INKASSO
+}
+
+enum DunningStatus {
+  ENTWURF
+  VERSENDET
+  ERLEDIGT
+  ABGEBROCHEN
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  type            InvoiceType   @default(RECHNUNG)
+  status          InvoiceStatus @default(ENTWURF)
+  customer        Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId      String
+  order           Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId         String?
+  date            DateTime      @default(now())
+  dueDate         DateTime
+  serviceDate     DateTime?
+  subject         String
+  introText       String?
+  outroText       String?
+  discountPercent Decimal       @default(0) @db.Decimal(5, 2)
+  netTotal        Decimal       @default(0) @db.Decimal(12, 2)
+  vatTotal        Decimal       @default(0) @db.Decimal(12, 2)
+  grossTotal      Decimal       @default(0) @db.Decimal(12, 2)
+  paidAmount      Decimal       @default(0) @db.Decimal(12, 2)
+  /// Skontosatz in Prozent, gültig innerhalb von skontoDays ab Rechnungsdatum.
+  skontoPercent   Decimal       @default(0) @db.Decimal(5, 2)
+  skontoDays      Int           @default(0)
+  /// Tatsächlich gewährter Abzug; wird beim Ausgleich festgehalten.
+  skontoAmount    Decimal       @default(0) @db.Decimal(12, 2)
+  /// Verrechnete Abschlagsrechnungen bei einer Schlussrechnung.
+  deductedAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  sentAt          DateTime?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+  /// Höchste bisher erreichte Mahnstufe.
+  dunningLevel    DunningLevel?
+  notes           String?
+
+  items    InvoiceItem[]
+  payments Payment[]
+  dunnings Dunning[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status, dueDate])
+  @@index([date])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id              String       @id @default(cuid())
+  invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  position        Int
+  type            LineItemType @default(LEISTUNG)
+  article         Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId       String?
+  title           String
+  description     String?
+  quantity        Decimal      @default(1) @db.Decimal(12, 3)
+  unit            String       @default("Stk")
+  unitPrice       Decimal      @default(0) @db.Decimal(12, 2)
+  discountPercent Decimal      @default(0) @db.Decimal(5, 2)
+  vatRate         Decimal      @default(19) @db.Decimal(5, 2)
+  netAmount       Decimal      @default(0) @db.Decimal(12, 2)
+
+  @@unique([invoiceId, position])
+  @@index([articleId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId String
+  amount    Decimal       @db.Decimal(12, 2)
+  date      DateTime      @default(now())
+  method    PaymentMethod @default(UEBERWEISUNG)
+  reference String?
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([date])
+  @@map("payments")
+}
+
+model Dunning {
+  id              String        @id @default(cuid())
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  level           DunningLevel
+  status          DunningStatus @default(ENTWURF)
+  date            DateTime      @default(now())
+  /// Neue Zahlungsfrist aus der Mahnung.
+  dueDate         DateTime
+  /// Offener Rechnungsbetrag zum Zeitpunkt der Mahnung.
+  openAmount      Decimal       @db.Decimal(12, 2)
+  fee             Decimal       @default(0) @db.Decimal(12, 2)
+  interest        Decimal       @default(0) @db.Decimal(12, 2)
+  /// Angewandter Verzugszinssatz. Wird mitgeschrieben, weil der Basiszinssatz
+  /// halbjährlich wechselt und die Mahnung ihren Satz belegen muss.
+  interestPercent Decimal       @default(0) @db.Decimal(5, 2)
+  totalAmount     Decimal       @db.Decimal(12, 2)
+  daysOverdue     Int
+  sentAt          DateTime?
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([invoiceId, level])
+  @@index([status, date])
+  @@map("dunnings")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Branchenmodul: Toranlagen, Prüfungen, Service
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum DoorType {
+  SECTIONALTOR
+  SCHWINGTOR
+  ROLLTOR
+  ROLLGITTER
+  SCHIEBETOR
+  FALTTOR
+  FLUEGELTOR
+  SCHNELLLAUFTOR
+  FEUERSCHUTZABSCHLUSS
+  INDUSTRIETOR
+  SCHRANKE
+}
+
+enum OperationMode {
+  HANDBETAETIGT
+  KRAFTBETAETIGT
+}
+
+enum DoorStatus {
+  IN_BETRIEB
+  EINGESCHRAENKT
+  AUSSER_BETRIEB
+  STILLGELEGT
+}
+
+/// Eine Toranlage beim Kunden. Kraftbetätigte Anlagen unterliegen der
+/// wiederkehrenden Prüfung nach ASR A1.7 Abschnitt 10.
+model Door {
+  id                String        @id @default(cuid())
+  doorNumber        String        @unique
+  customer          Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId        String
+  site              Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId            String?
+  type              DoorType
+  operationMode     OperationMode @default(KRAFTBETAETIGT)
+  status            DoorStatus    @default(IN_BETRIEB)
+  /// Bezeichnung des Einbauorts, z. B. "Halle 2, Tor Nord".
+  location          String
+  manufacturer      String?
+  model             String?
+  serialNumber      String?
+  yearBuilt         Int?
+  widthMm           Int?
+  heightMm          Int?
+  /// Gewicht des Torblatts in Kilogramm, relevant für die Absturzsicherung.
+  weightKg          Decimal?      @db.Decimal(8, 2)
+  driveManufacturer String?
+  driveModel        String?
+  driveSerialNumber String?
+  installationDate  DateTime?
+  warrantyUntil     DateTime?
+  /// Nächste fällige Prüfung; wird bei jeder Prüfung fortgeschrieben.
+  nextInspectionDue DateTime?
+  notes             String?
+
+  inspections    Inspection[]
+  defects        Defect[]
+  serviceReports ServiceReport[]
+  contracts      MaintenanceContract[] @relation("MaintenanceContractDoors")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([siteId])
+  @@index([nextInspectionDue])
+  @@map("doors")
+}
+
+enum InspectionType {
+  ERSTPRUEFUNG
+  WIEDERKEHRENDE_PRUEFUNG
+  AUSSERORDENTLICHE_PRUEFUNG
+  NACHPRUEFUNG
+}
+
+enum InspectionResult {
+  BESTANDEN
+  BESTANDEN_MIT_HINWEISEN
+  GERINGE_MAENGEL
+  ERHEBLICHE_MAENGEL
+  NICHT_BESTANDEN
+}
+
+enum CheckResult {
+  OK
+  MANGEL
+  NICHT_ZUTREFFEND
+  NICHT_GEPRUEFT
+}
+
+/// Prüfprotokoll einer Toranlage nach ASR A1.7.
+model Inspection {
+  id                 String            @id @default(cuid())
+  inspectionNumber   String            @unique
+  door               Door              @relation(fields: [doorId], references: [id], onDelete: Cascade)
+  doorId             String
+  order              Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId            String?
+  type               InspectionType    @default(WIEDERKEHRENDE_PRUEFUNG)
+  date               DateTime          @default(now())
+  /// Sachkundige Person, die die Prüfung durchgeführt hat.
+  inspector          Employee?         @relation("InspectionInspector", fields: [inspectorId], references: [id], onDelete: SetNull)
+  inspectorId        String?
+  /// Name der prüfenden Person im Klartext (auch für Fremdprüfungen).
+  inspectorName      String
+  result             InspectionResult?
+  /// Nächster Prüftermin, üblicherweise Prüfdatum + 12 Monate.
+  nextDueDate        DateTime?
+  summary            String?
+  recommendation     String?
+  /// Unterschrift der prüfenden Person als Data-URL.
+  signatureInspector String?
+  signatureCustomer  String?
+  signedByName       String?
+  completedAt        DateTime?
+
+  checks  InspectionCheck[]
+  defects Defect[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doorId, date])
+  @@index([date])
+  @@map("inspections")
+}
+
+/// Einzelner Prüfpunkt des Protokolls, befüllt aus dem Prüfkatalog.
+model InspectionCheck {
+  id            String      @id @default(cuid())
+  inspection    Inspection  @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  inspectionId  String
+  position      Int
+  /// Schlüssel aus ASR_A17_CHECK_CATALOG.
+  key           String
+  group         String
+  label         String
+  reference     String?
+  result        CheckResult @default(NICHT_GEPRUEFT)
+  /// Messwert, z. B. Schließkraft in Newton.
+  measuredValue Decimal?    @db.Decimal(10, 2)
+  unit          String?
+  /// Grenzwert, gegen den gemessen wurde.
+  limitValue    Decimal?    @db.Decimal(10, 2)
+  comment       String?
+
+  @@unique([inspectionId, position])
+  @@index([inspectionId])
+  @@map("inspection_checks")
+}
+
+enum DefectSeverity {
+  HINWEIS
+  GERING
+  ERHEBLICH
+  GEFAHR_IM_VERZUG
+}
+
+enum DefectStatus {
+  OFFEN
+  IN_BEARBEITUNG
+  BEHOBEN
+  AKZEPTIERT
+}
+
+model Defect {
+  id           String         @id @default(cuid())
+  door         Door           @relation(fields: [doorId], references: [id], onDelete: Cascade)
+  doorId       String
+  inspection   Inspection?    @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  inspectionId String?
+  severity     DefectSeverity @default(GERING)
+  status       DefectStatus   @default(OFFEN)
+  title        String
+  description  String?
+  /// Prüfpunkt, aus dem der Mangel hervorgeht.
+  checkKey     String?
+  /// Frist zur Behebung; bei Gefahr im Verzug sofort.
+  dueDate      DateTime?
+  resolvedAt   DateTime?
+  resolvedNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doorId, status])
+  @@index([status, dueDate])
+  @@map("defects")
+}
+
+enum ServiceReportStatus {
+  ENTWURF
+  ABGESCHLOSSEN
+  ABGERECHNET
+}
+
+/// Digitaler Servicebericht des Monteurs vor Ort.
+model ServiceReport {
+  id                  String              @id @default(cuid())
+  reportNumber        String              @unique
+  order               Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId             String?
+  door                Door?               @relation(fields: [doorId], references: [id], onDelete: SetNull)
+  doorId              String?
+  technician          Employee?           @relation("ServiceReportTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  technicianId        String?
+  status              ServiceReportStatus @default(ENTWURF)
+  date                DateTime            @default(now())
+  arrivalTime         DateTime?
+  departureTime       DateTime?
+  /// Arbeitszeit in Stunden.
+  workHours           Decimal             @default(0) @db.Decimal(6, 2)
+  /// Fahrtkostenpauschale in Euro. Ersetzt die frühere Fahrtzeit in Stunden:
+  /// Abgerechnet wird die Anfahrt als fester Betrag, nicht nach Aufwand.
+  travelFlatRate      Decimal             @default(0) @db.Decimal(10, 2)
+  travelKm            Decimal             @default(0) @db.Decimal(8, 2)
+  faultDescription    String?
+  workPerformed       String
+  /// Weitere Arbeiten erforderlich (Folgeauftrag).
+  followUpRequired    Boolean             @default(false)
+  followUpNote        String?
+  signatureCustomer   String?
+  signatureTechnician String?
+  signedByName        String?
+  completedAt         DateTime?
+
+  materials ServiceReportMaterial[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([doorId, date])
+  @@index([technicianId, date])
+  @@map("service_reports")
+}
+
+model ServiceReportMaterial {
+  id        String        @id @default(cuid())
+  report    ServiceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportId  String
+  article   Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId String?
+  name      String
+  quantity  Decimal       @db.Decimal(12, 3)
+  unit      String        @default("Stk")
+  unitPrice Decimal       @default(0) @db.Decimal(12, 2)
+
+  @@index([reportId])
+  @@map("service_report_materials")
+}
+
+enum MaintenanceContractStatus {
+  AKTIV
+  PAUSIERT
+  GEKUENDIGT
+  ABGELAUFEN
+}
+
+model MaintenanceContract {
+  id                 String                    @id @default(cuid())
+  contractNumber     String                    @unique
+  customer           Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId         String
+  status             MaintenanceContractStatus @default(AKTIV)
+  title              String
+  /// Wartungsintervall in Monaten.
+  intervalMonths     Int                       @default(12)
+  /// Pauschale je Wartungseinsatz.
+  price              Decimal                   @default(0) @db.Decimal(12, 2)
+  startDate          DateTime
+  endDate            DateTime?
+  /// Kündigungsfrist in Monaten.
+  noticePeriodMonths Int                       @default(3)
+  lastServiceDate    DateTime?
+  nextServiceDate    DateTime?
+  /// Beinhaltet die wiederkehrende Prüfung nach ASR A1.7.
+  includesInspection Boolean                   @default(true)
+  notes              String?
+
+  doors Door[] @relation("MaintenanceContractDoors")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status, nextServiceDate])
+  @@map("maintenance_contracts")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Lager und Beschaffung
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum StockMovementType {
+  ZUGANG
+  ABGANG
+  KORREKTUR
+  INVENTUR
+  UMLAGERUNG
+  RETOURE
+}
+
+model Article {
+  id                 String    @id @default(cuid())
+  articleNumber      String    @unique
+  name               String
+  description        String?
+  category           String?
+  manufacturer       String?
+  /// Artikelnummer des Herstellers.
+  manufacturerNumber String?
+  ean                String?
+  unit               String    @default("Stk")
+  purchasePrice      Decimal   @default(0) @db.Decimal(12, 2)
+  salesPrice         Decimal   @default(0) @db.Decimal(12, 2)
+  vatRate            Decimal   @default(19) @db.Decimal(5, 2)
+  stock              Decimal   @default(0) @db.Decimal(12, 3)
+  minStock           Decimal   @default(0) @db.Decimal(12, 3)
+  storageLocation    String?
+  supplier           Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierId         String?
+  /// Lagerartikel werden bestandsgeführt, Leistungen nicht.
+  stockManaged       Boolean   @default(true)
+  active             Boolean   @default(true)
+
+  stockMovements     StockMovement[]
+  quoteItems         QuoteItem[]
+  orderItems         OrderItem[]
+  invoiceItems       InvoiceItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  serviceMaterials   ServiceReportMaterial[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, name])
+  @@index([category])
+  @@index([supplierId])
+  @@map("articles")
+}
+
+model StockMovement {
+  id              String            @id @default(cuid())
+  article         Article           @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId       String
+  type            StockMovementType
+  /// Bewegungsmenge, bei Abgängen positiv angegeben.
+  quantity        Decimal           @db.Decimal(12, 3)
+  /// Bestand nach der Buchung.
+  stockAfter      Decimal           @db.Decimal(12, 3)
+  date            DateTime          @default(now())
+  order           Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId         String?
+  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  purchaseOrderId String?
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId          String?
+  reference       String?
+  note            String?
+
+  createdAt DateTime @default(now())
+
+  @@index([articleId, date])
+  @@index([orderId])
+  @@map("stock_movements")
+}
+
+model Supplier {
+  id               String  @id @default(cuid())
+  supplierNumber   String  @unique
+  name             String
+  contactName      String?
+  email            String?
+  phone            String?
+  street           String?
+  zip              String?
+  city             String?
+  country          String  @default("DE")
+  customerNumber   String?
+  vatId            String?
+  paymentTermsDays Int     @default(30)
+  /// Skonto in Prozent bei Zahlung innerhalb der Skontofrist.
+  discountPercent  Decimal @default(0) @db.Decimal(5, 2)
+  notes            String?
+  active           Boolean @default(true)
+
+  articles       Article[]
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, name])
+  @@map("suppliers")
+}
+
+enum PurchaseOrderStatus {
+  ENTWURF
+  BESTELLT
+  TEILGELIEFERT
+  GELIEFERT
+  STORNIERT
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  orderNumber String              @unique
+  supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplierId  String
+  status      PurchaseOrderStatus @default(ENTWURF)
+  date        DateTime            @default(now())
+  expectedAt  DateTime?
+  deliveredAt DateTime?
+  netTotal    Decimal             @default(0) @db.Decimal(12, 2)
+  vatTotal    Decimal             @default(0) @db.Decimal(12, 2)
+  grossTotal  Decimal             @default(0) @db.Decimal(12, 2)
+  notes       String?
+
+  items          PurchaseOrderItem[]
+  stockMovements StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([status, date])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id                String        @id @default(cuid())
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId   String
+  position          Int
+  article           Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleId         String?
+  title             String
+  quantity          Decimal       @db.Decimal(12, 3)
+  /// Bereits gelieferte Menge.
+  deliveredQuantity Decimal       @default(0) @db.Decimal(12, 3)
+  unit              String        @default("Stk")
+  unitPrice         Decimal       @default(0) @db.Decimal(12, 2)
+  vatRate           Decimal       @default(19) @db.Decimal(5, 2)
+  netAmount         Decimal       @default(0) @db.Decimal(12, 2)
+
+  @@unique([purchaseOrderId, position])
+  @@index([articleId])
+  @@map("purchase_order_items")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Termine, Projekte, Zeiterfassung
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum AppointmentType {
+  MONTAGE
+  WARTUNG
+  PRUEFUNG
+  REPARATUR
+  AUFMASS
+  BERATUNG
+  INTERN
+}
+
+enum AppointmentStatus {
+  GEPLANT
+  BESTAETIGT
+  UNTERWEGS
+  ERLEDIGT
+  ABGESAGT
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  title       String
+  type        AppointmentType   @default(MONTAGE)
+  status      AppointmentStatus @default(GEPLANT)
+  start       DateTime
+  end         DateTime
+  allDay      Boolean           @default(false)
+  customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId  String?
+  site        Site?             @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId      String?
+  order       Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId     String?
+  location    String?
+  description String?
+
+  assignees Employee[] @relation("AppointmentAssignees")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([start])
+  @@index([customerId])
+  @@index([orderId])
+  @@map("appointments")
+}
+
+enum ProjectStatus {
+  PLANUNG
+  LAUFEND
+  PAUSIERT
+  ABGESCHLOSSEN
+  ABGEBROCHEN
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  projectNumber String        @unique
+  name          String
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId    String?
+  site          Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  siteId        String?
+  manager       Employee?     @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
+  managerId     String?
+  status        ProjectStatus @default(PLANUNG)
+  description   String?
+  budget        Decimal?      @db.Decimal(12, 2)
+  startDate     DateTime?
+  endDate       DateTime?
+  completedAt   DateTime?
+
+  orders      Order[]
+  tasks       ProjectTask[]
+  timeEntries TimeEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([customerId])
+  @@map("projects")
+}
+
+enum TaskStatus {
+  OFFEN
+  IN_ARBEIT
+  ERLEDIGT
+}
+
+model ProjectTask {
+  id          String     @id @default(cuid())
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String
+  title       String
+  description String?
+  status      TaskStatus @default(OFFEN)
+  assignee    Employee?  @relation("ProjectTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId  String?
+  dueDate     DateTime?
+  /// Meilensteine markieren Projektabschnitte im Zeitplan.
+  milestone   Boolean    @default(false)
+  completedAt DateTime?
+  position    Int        @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, status])
+  @@map("project_tasks")
+}
+
+enum TimeEntryType {
+  ARBEITSZEIT
+  FAHRTZEIT
+  BEREITSCHAFT
+  URLAUB
+  KRANKHEIT
+  FEIERTAG
+  SCHULUNG
+}
+
+model TimeEntry {
+  id           String        @id @default(cuid())
+  employee     Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId   String
+  type         TimeEntryType @default(ARBEITSZEIT)
+  date         DateTime
+  start        DateTime
+  end          DateTime
+  breakMinutes Int           @default(0)
+  /// Netto-Dauer in Stunden nach Abzug der Pause.
+  hours        Decimal       @db.Decimal(6, 2)
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId      String?
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId    String?
+  billable     Boolean       @default(true)
+  /// Gegenüber dem Kunden abgerechnet.
+  invoiced     Boolean       @default(false)
+  description  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, date])
+  @@index([orderId])
+  @@index([projectId])
+  @@map("time_entries")
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+/**
+ * Dokumente, Einstellungen, Protokoll
+ */
+/**
+ * ------------------------------------------------------------------
+ */
+
+enum DocumentCategory {
+  ANGEBOT
+  AUFTRAG
+  RECHNUNG
+  MAHNUNG
+  PRUEFPROTOKOLL
+  SERVICEBERICHT
+  WARTUNGSVERTRAG
+  FOTO
+  TECHNISCHE_UNTERLAGE
+  PERSONAL
+  SONSTIGES
+}
+
+enum EntityType {
+  CUSTOMER
+  SITE
+  QUOTE
+  ORDER
+  INVOICE
+  DOOR
+  INSPECTION
+  SERVICE_REPORT
+  MAINTENANCE_CONTRACT
+  PROJECT
+  EMPLOYEE
+  ARTICLE
+  SUPPLIER
+  PURCHASE_ORDER
+}
+
+/// Dateiablage mit loser Verknüpfung zu beliebigen Entitäten.
+model Document {
+  id           String           @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  /// Dateigröße in Byte.
+  size         Int
+  /// Pfad relativ zum konfigurierten Upload-Verzeichnis.
+  storagePath  String
+  category     DocumentCategory @default(SONSTIGES)
+  entityType   EntityType?
+  entityId     String?
+  /// Feinere Zuordnung innerhalb der Entität, etwa der Schlüssel eines
+  /// Prüfpunkts. So hängt ein Foto am einzelnen Punkt statt am ganzen Protokoll.
+  entityRef    String?
+  title        String?
+  description  String?
+  uploadedBy   User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([entityType, entityId, entityRef])
+  @@index([category])
+  @@map("documents")
+}
+
+/// Schlüssel-Wert-Ablage für Firmendaten, Textbausteine und Mahnparameter.
+model Setting {
+  key         String  @id
+  category    String  @default("allgemein")
+  value       Json
+  description String?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("settings")
+}
+
+/// Benannte Vorlage einer Einstellungsgruppe. Damit lässt sich ein Stand
+/// festhalten, später wieder einsetzen und einer davon als Favorit markieren.
+model SettingPreset {
+  id         String  @id @default(cuid())
+  settingKey String
+  name       String
+  favorite   Boolean @default(false)
+  value      Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([settingKey, name])
+  @@index([settingKey, favorite])
+  @@map("setting_presets")
+}
+
+/// Fortlaufende Belegnummern je Entität, optional mit Jahresreset.
+model NumberRange {
+  entity      String  @id
+  prefix      String  @default("")
+  suffix      String  @default("")
+  nextNumber  Int     @default(1)
+  padding     Int     @default(4)
+  yearlyReset Boolean @default(true)
+  /// Jahr, für das nextNumber gilt.
+  currentYear Int
+
+  updatedAt DateTime @updatedAt
+
+  @@map("number_ranges")
+}
+
+/// Änderungsprotokoll für nachvollziehbare Belegänderungen.
+model AuditLog {
+  id         String   @id @default(cuid())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum MailStatus {
+  GESENDET
+  FEHLGESCHLAGEN
+}
+
+/// Versandprotokoll. Belegt, welcher Beleg wann an wen hinausgegangen ist –
+/// ohne das lässt sich im Streitfall nicht zeigen, dass die Rechnung den
+/// Kunden erreicht hat.
+model MailLog {
+  id         String      @id @default(cuid())
+  entityType EntityType?
+  entityId   String?
+  /// Belegnummer im Klartext, damit das Protokoll auch ohne den Beleg lesbar bleibt.
+  reference  String?
+  recipient  String
+  cc         String?
+  subject    String
+  body       String
+  /// Dateinamen der Anhänge.
+  attachments String[]
+  status     MailStatus
+  /// Meldung des Mailservers, wenn der Versand scheiterte.
+  error      String?
+  messageId  String?
+  sentBy     User?       @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  sentById   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("mail_logs")
+}

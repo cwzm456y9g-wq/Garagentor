@@ -1,0 +1,23 @@
+1:"$Sreact.fragment"
+2:I[3462,["9664","static/chunks/9664-af80478aa73ba424.js","7177","static/chunks/app/layout-e707e0d65d5eed17.js"],"DARSTELLUNG_SKRIPT"]
+3:I[5341,[],""]
+4:I[25,[],""]
+5:I[9664,["9664","static/chunks/9664-af80478aa73ba424.js","4345","static/chunks/app/not-found-0ef1688d9e2bdaf1.js"],""]
+6:I[4492,["9242","static/chunks/9242-d70c648679646892.js","9097","static/chunks/app/(auth)/layout-a7867fbacbca56b5.js"],"AuthProvider"]
+7:I[1012,[],"ClientPageRoot"]
+8:I[533,["9664","static/chunks/9664-af80478aa73ba424.js","9242","static/chunks/9242-d70c648679646892.js","72","static/chunks/app/(auth)/login/page-9a744515c64fd852.js"],"default"]
+b:I[5104,[],"OutletBoundary"]
+d:I[7158,[],"AsyncMetadataOutlet"]
+f:I[5104,[],"ViewportBoundary"]
+11:I[5104,[],"MetadataBoundary"]
+12:"$Sreact.suspense"
+14:I[4431,[],""]
+:HL["/_next/static/css/94c67d949bda4373.css","style"]
+0:{"P":null,"b":"wIqSL5t35CjEEC88cxx6S","p":"","c":["","login"],"i":false,"f":[[["",{"children":["(auth)",{"children":["login",{"children":["__PAGE__",{}]}]}]},"$undefined","$undefined",true],["",["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/94c67d949bda4373.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"de","data-scroll-behavior":"smooth","suppressHydrationWarning":true,"children":[["$","head",null,{"children":["$","script",null,{"dangerouslySetInnerHTML":{"__html":"$2"}}]}],["$","body",null,{"className":"min-h-screen","children":["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L4",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","main",null,{"className":"flex min-h-screen items-center justify-center px-6","children":["$","div",null,{"className":"text-center","children":[["$","p",null,{"className":"text-verweis text-sm font-semibold","children":"Fehler 404"}],["$","h1",null,{"className":"mt-2 text-2xl font-bold text-slate-900","children":"Seite nicht gefunden"}],["$","p",null,{"className":"mt-2 text-sm text-slate-600","children":"Die aufgerufene Seite existiert nicht oder wurde verschoben."}],["$","$L5",null,{"href":"/dashboard","className":"bg-marine-700 hover:bg-marine-800 mt-6 inline-block rounded-md px-4 py-2 text-sm font-medium text-white","children":"Zum Dashboard"}]]}]}],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]]}]]}],{"children":["(auth)",["$","$1","c",{"children":[null,["$","$L6",null,{"children":["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L4",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]}]]}],{"children":["login",["$","$1","c",{"children":[null,["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L4",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":["__PAGE__",["$","$1","c",{"children":[["$","$L7",null,{"Component":"$8","searchParams":{},"params":{},"promises":["$@9","$@a"]}],null,["$","$Lb",null,{"children":["$Lc",["$","$Ld",null,{"promise":"$@e"}]]}]]}],{},null,false]},null,false]},null,false]},null,false],["$","$1","h",{"children":[null,[["$","$Lf",null,{"children":"$L10"}],null],["$","$L11",null,{"children":["$","div",null,{"hidden":true,"children":["$","$12",null,{"fallback":null,"children":"$L13"}]}]}]]}],false]],"m":"$undefined","G":["$14",[]],"s":false,"S":true}
+9:{}
+a:"$0:f:0:1:2:children:2:children:2:children:1:props:children:0:props:params"
+10:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}],["$","meta","2",{"name":"theme-color","content":"#1e3247"}]]
+c:null
+15:I[6505,[],"IconMark"]
+e:{"metadata":[["$","title","0",{"children":"Garagentor"}],["$","meta","1",{"name":"description","content":"Branchensoftware für Garagentor-Fachbetriebe: Angebote, Aufträge, Rechnungen sowie Toranlagen mit wiederkehrender Prüfung nach ASR A1.7."}],["$","meta","2",{"name":"robots","content":"noindex, nofollow"}],["$","link","3",{"rel":"icon","href":"/icon.svg?b8b94933f2e9030a","type":"image/svg+xml","sizes":"any"}],["$","$L15","4",{}]],"error":null,"digest":"$undefined"}
+13:"$e:metadata"

@@ -1,0 +1,14 @@
+{
+  "name": "garagentor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Garagentor – fertig gebaut, bereit zum Start",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "echo 'Bereits gebaut – dieser Branch enthält das Ergebnis.'",
+    "start": "node server.js"
+  }
+}
