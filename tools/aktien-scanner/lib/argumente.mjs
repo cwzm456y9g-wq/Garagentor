@@ -113,6 +113,19 @@ export function argumenteLesen(argumente) {
   }
 
   if (unbekannt.length) throw new Error(`Unbekannte Angabe: ${unbekannt.join(', ')}`);
+
+  // Naheliegende Schreibweisen durchlassen, statt sie mit einer Fehlermeldung
+  // abzuweisen: Wer „weltweit" tippt, meint zweifelsfrei „welt".
+  const MARKTNAMEN = {
+    weltweit: 'welt',
+    global: 'welt',
+    de: 'deutschland',
+    dax: 'deutschland',
+    us: 'usa',
+    amerika: 'usa',
+  };
+  werte.markt = MARKTNAMEN[werte.markt] ?? werte.markt;
+
   if (!PROFILE[werte.profil]) {
     throw new Error(`Profil „${werte.profil}" gibt es nicht. Möglich: ${Object.keys(PROFILE).join(', ')}.`);
   }
@@ -135,7 +148,8 @@ schnellsten Aufwärtstrend und schreibt daraus einen Handelsplan.
   npm run aktien -- [Schalter]
 
 MARKT
-  --markt <name>          usa (Vorgabe), deutschland, welt, eigene
+  --markt <name>          usa (Vorgabe), deutschland, welt (auch: weltweit)
+                          oder eigene
   --symbole A,B,C         Nur diese Papiere prüfen
   --datei <pfad>          Symbolliste aus Datei, ein Symbol je Zeile
 
