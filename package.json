@@ -31,7 +31,9 @@
     "db:studio": "npm run db:studio --workspace @garagentor/web",
     "paket": "bash tools/hostinger-paket.sh",
     "hostinger": "bash tools/hostinger-branch.sh",
-    "datenbank": "node tools/datenbank-sql.mjs"
+    "datenbank": "node tools/datenbank-sql.mjs",
+    "aktien": "node tools/aktien-scanner/scanner.mjs",
+    "aktien:test": "node --test \"tools/aktien-scanner/tests/*.test.mjs\""
   },
   "devDependencies": {
     "concurrently": "^10.0.4",

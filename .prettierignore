@@ -5,3 +5,5 @@ build
 coverage
 package-lock.json
 apps/web/prisma/migrations
+tools/aktien-scanner/berichte
+tools/aktien-scanner/.zwischenspeicher

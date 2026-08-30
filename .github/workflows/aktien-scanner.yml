@@ -1,0 +1,75 @@
+name: Aktien-Scanner
+
+# Werktags nach dem US-Handelsschluss (22:00 UTC) und vor Handelsbeginn in
+# Europa. Geplante Abläufe startet GitHub ausschließlich vom Standardzweig aus;
+# auf einem Arbeitszweig lässt sich der Lauf über „Run workflow" auslösen.
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      profil:
+        description: 'Gewichtungsprofil'
+        type: choice
+        options: [ausgewogen, schnell, solide]
+        default: ausgewogen
+      anzahl:
+        description: 'Länge der Bestenliste'
+        default: '20'
+      kapital:
+        description: 'Depotgröße für den Handelsplan'
+        default: '10000'
+
+concurrency:
+  group: aktien-scanner
+  cancel-in-progress: false
+
+jobs:
+  bestenliste:
+    runs-on: ubuntu-latest
+    # Ein hängender Abruf soll nicht stundenlang Minuten verbrauchen; ein
+    # vollständiger Lauf über beide Märkte dauert unter zwei Minuten.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Kein `npm ci`: Das Werkzeug kommt ohne Abhängigkeiten aus und braucht
+      # nur die Standardbibliothek von Node.
+      - name: Rechenkerne prüfen
+        run: npm run aktien:test
+
+      - name: US-Markt durchsuchen
+        run: |
+          node tools/aktien-scanner/scanner.mjs \
+            --markt usa \
+            --profil "${{ inputs.profil || 'ausgewogen' }}" \
+            --anzahl "${{ inputs.anzahl || '20' }}" \
+            --kapital "${{ inputs.kapital || '10000' }}" \
+            --geschaeftszahlen \
+            --leise
+
+      - name: Deutschen Markt durchsuchen
+        run: |
+          node tools/aktien-scanner/scanner.mjs \
+            --markt deutschland \
+            --profil "${{ inputs.profil || 'ausgewogen' }}" \
+            --anzahl "${{ inputs.anzahl || '20' }}" \
+            --kapital "${{ inputs.kapital || '10000' }}" \
+            --leise
+
+      # Die Berichte hängen am Lauf und lassen sich dort herunterladen. Sie
+      # gehören nicht ins Repository: Sie entstehen jeden Tag neu und wären
+      # nach einem Jahr 250 Fassungen derselben Datei.
+      - name: Berichte anhängen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bestenliste-${{ github.run_number }}
+          path: tools/aktien-scanner/berichte/
+          retention-days: 90
+          if-no-files-found: warn

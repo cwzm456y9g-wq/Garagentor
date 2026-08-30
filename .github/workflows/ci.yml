@@ -46,3 +46,8 @@ jobs:
 
       - name: Tests
         run: npm test
+
+      # `npm test` läuft über die Workspaces; `tools/` gehört zu keinem und
+      # bliebe sonst ungeprüft.
+      - name: Tests der Werkzeuge
+        run: npm run aktien:test

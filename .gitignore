@@ -56,3 +56,7 @@ apps/web/.env.local
 paket
 garagentor-paket.zip
 garagentor-datenbank.sql
+
+# Aktien-Scanner: Berichte und zwischengespeicherte Kursreihen
+tools/aktien-scanner/berichte/
+tools/aktien-scanner/.zwischenspeicher/

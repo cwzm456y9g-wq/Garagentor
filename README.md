@@ -6,11 +6,11 @@ nach **ASR A1.7** und digitalen Serviceberichten.
 
 ## Monorepo
 
-| Pfad              | Paket                | Inhalt                                                |
-| ----------------- | -------------------- | ----------------------------------------------------- |
-| `apps/web`        | `@garagentor/web`    | Die Anwendung: Oberfläche und API in einem Prozess    |
-| `packages/shared` | `@garagentor/shared` | Enums, Typen, Beleg- und Datumslogik für beide Seiten |
-| `tools`           | –                    | Umzugsskript und Paketierung für Hostinger            |
+| Pfad              | Paket                | Inhalt                                                  |
+| ----------------- | -------------------- | ------------------------------------------------------- |
+| `apps/web`        | `@garagentor/web`    | Die Anwendung: Oberfläche und API in einem Prozess      |
+| `packages/shared` | `@garagentor/shared` | Enums, Typen, Beleg- und Datumslogik für beide Seiten   |
+| `tools`           | –                    | Umzugsskript, Paketierung für Hostinger, Aktien-Scanner |
 
 Verwaltet mit npm-Workspaces – installiert wird ausschließlich im Wurzelverzeichnis.
 
