@@ -6,11 +6,12 @@ nach **ASR A1.7** und digitalen Serviceberichten.
 
 ## Monorepo
 
-| Pfad              | Paket                | Inhalt                                                |
-| ----------------- | -------------------- | ----------------------------------------------------- |
-| `apps/web`        | `@garagentor/web`    | Die Anwendung: Oberfläche und API in einem Prozess    |
-| `packages/shared` | `@garagentor/shared` | Enums, Typen, Beleg- und Datumslogik für beide Seiten |
-| `tools`           | –                    | Umzugsskript und Paketierung für Hostinger            |
+| Pfad                 | Paket                       | Inhalt                                                |
+| -------------------- | --------------------------- | ----------------------------------------------------- |
+| `apps/web`           | `@garagentor/web`           | Die Anwendung: Oberfläche und API in einem Prozess    |
+| `apps/pdf-werkstatt` | `@garagentor/pdf-werkstatt` | Eigenständiger PDF-Editor, läuft komplett im Browser  |
+| `packages/shared`    | `@garagentor/shared`        | Enums, Typen, Beleg- und Datumslogik für beide Seiten |
+| `tools`              | –                           | Umzugsskript und Paketierung für Hostinger            |
 
 Verwaltet mit npm-Workspaces – installiert wird ausschließlich im Wurzelverzeichnis.
 
@@ -84,6 +85,7 @@ baut es vorab und hält es anschließend im Watch-Modus.
 | ---------------------- | -------------------------------------------------- |
 | `npm run setup`        | Paket bauen, Client erzeugen, migrieren, Demodaten |
 | `npm run dev`          | Shared und Anwendung parallel im Watch-Modus       |
+| `npm run dev:pdf`      | PDF-Werkstatt starten (Port 5174)                  |
 | `npm run build`        | Alle Workspaces bauen                              |
 | `npm run build:shared` | Nur das gemeinsame Paket bauen                     |
 | `npm run paket`        | Aus dem Bau ein Hostinger-Paket schnüren           |

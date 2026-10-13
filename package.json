@@ -17,6 +17,7 @@
     "dev": "npm run build:shared && concurrently -k -n shared,web -c blue,magenta npm:dev:shared npm:dev:web",
     "dev:shared": "npm run dev --workspace @garagentor/shared",
     "dev:web": "npm run dev --workspace @garagentor/web",
+    "dev:pdf": "npm run dev --workspace @garagentor/pdf-werkstatt",
     "setup": "npm run build:shared && npm run db:generate && npm run db:migrate && npm run db:seed",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
